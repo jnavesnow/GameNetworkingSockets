@@ -22,7 +22,9 @@ jobs:
       uses: nwtgck/actions-setup-android-ndk@v1
       with:
         ndk-version: r25c
-    - run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+        
+    - name: Install Dependencies
+      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
 
     - name: Compile Android
       run: |
@@ -125,8 +127,8 @@ jobs:
     - name: Bootstrap vcpkg dependencies
       run: |
         git clone https://github.com
-        .\vcpkg\bootstrap-vcpkg.bat
-        .\vcpkg\vcpkg install openssl:x64-windows
+        ./vcpkg/bootstrap-vcpkg.bat
+        ./vcpkg/vcpkg install openssl:x64-windows
 
     - name: Compile Windows (.dll)
       run: |
@@ -156,10 +158,10 @@ jobs:
   # 4. PUBLIC RELEASE GENERATOR JOB
   # ----------------------------------------------------
   publish-release:
-    needs: [build-android, build-apple, build-windows] # Waits for all compilation steps to succeed
+    needs: [build-android, build-apple, build-windows]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Grants runner write access to publish to the Releases tab
+      contents: write
     steps:
     - name: Download Compiled Binaries
       uses: actions/download-artifact@v4
