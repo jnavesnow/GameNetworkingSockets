@@ -3,13 +3,10 @@ on: [workflow_dispatch]
 
 jobs:
   # ----------------------------------------------------
-  # 1. ANDROID JOB (Ubuntu Runner)
+  # 1. ANDROID JOBS
   # ----------------------------------------------------
-  build-android:
+  build-android-arm64:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        abi: [arm64-v8a, armeabi-v7a]
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -26,12 +23,11 @@ jobs:
     - name: Install Dependencies
       run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
 
-    - name: Compile Android
+    - name: Compile Android arm64-v8a
       run: |
-        BUILD_DIR="build_android_\${{ matrix.abi }}"
-        cmake -H. -B\${BUILD_DIR} -G Ninja \
+        cmake -H. -Bbuild_arm64 -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI="\${{ matrix.abi }}" \
+            -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -39,19 +35,63 @@ jobs:
             -DENABLE_ICE=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_EXAMPLES=OFF
-        cmake --build \${BUILD_DIR} --config Release
-        \({ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug\){BUILD_DIR}/bin/libgamenetworkingsockets.so
+        cmake --build build_arm64 --config Release
+        \${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_arm64/bin/libgamenetworkingsockets.so
 
     - name: Prepare Artifact
       run: |
-        mkdir -p out-android-\${{ matrix.abi }}
-        cp build_android_ matrix.abi /bin/libgamenetworkingsockets.so out-android-{{ matrix.abi }}/
+        mkdir -p out_arm64
+        cp build_arm64/bin/libgamenetworkingsockets.so out_arm64/
 
-    - name: Upload Android Binary
+    - name: Upload Android arm64
       uses: actions/upload-artifact@v4
       with:
-        name: android-\${{ matrix.abi }}
-        path: out-android-\${{ matrix.abi }}/
+        name: android-arm64-v8a
+        path: out_arm64/
+
+  build-android-armv7:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
+        submodules: recursive
+
+    - name: Set up NDK & Tools
+      uses: nwtgck/actions-setup-android-ndk@v1
+      with:
+        ndk-version: r25c
+        
+    - name: Install Dependencies
+      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
+    - name: Compile Android armeabi-v7a
+      run: |
+        cmake -H. -Bbuild_armv7 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="armeabi-v7a" \
+            -DANDROID_PLATFORM="android-21" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_STEAMDATAGRAMRELAY=OFF \
+            -DENABLE_ICE=ON \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_EXAMPLES=OFF
+        cmake --build build_armv7 --config Release
+        \${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_armv7/bin/libgamenetworkingsockets.so
+
+    - name: Prepare Artifact
+      run: |
+        mkdir -p out_armv7
+        cp build_armv7/bin/libgamenetworkingsockets.so out_armv7/
+
+    - name: Upload Android armv7
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-armeabi-v7a
+        path: out_armv7/
 
   # ----------------------------------------------------
   # 2. APPLE JOB (iOS & macOS - Mac Runner)
@@ -158,7 +198,7 @@ jobs:
   # 4. PUBLIC RELEASE GENERATOR JOB
   # ----------------------------------------------------
   publish-release:
-    needs: [build-android, build-apple, build-windows]
+    needs: [build-android-arm64, build-android-armv7, build-apple, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
