@@ -44,7 +44,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-arm64-v8a
-        path: out_arm64/libgamenetworkingsockets.so
+        path: out_arm64/
 
   build-android-armv7:
     runs-on: ubuntu-latest
@@ -88,7 +88,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-armeabi-v7a
-        path: out_armv7/libgamenetworkingsockets.so
+        path: out_armv7/
 
   build-apple:
     runs-on: macos-latest
@@ -164,7 +164,7 @@ jobs:
     - name: Compile Windows (.dll)
       run: |
         cmake -H. -Bbuild_win -G Ninja `
-            "-DCMAKE_TOOLCHAIN_FILE=\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_TOOLCHAIN_FILE="\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_BUILD_TYPE=Release `
             -DBUILD_SHARED_LIBS=ON `
             -DENABLE_STEAMDATAGRAMRELAY=OFF `
@@ -215,10 +215,10 @@ jobs:
           Automated cross-compiled release binaries of GameNetworkingSockets v1.6.1.
           
           ### Configuration Details:
-          * Google Protobuf: Disabled
-          * Steam Datagram Relay (SDR): Disabled
-          * Native ICE / STUN / TURN P2P Networking: Enabled
-          * Build Type: Release Optimization, Strip-Debug Hooks Applied
+          * Google Protobuf: Disabled ❌
+          * Steam Datagram Relay (SDR): Disabled ❌
+          * Native ICE / STUN / TURN P2P Networking: Enabled  (Self-contained)
+          * Build Type: Release Optimization, Strip-Debug Hooks Applied 🚀
         draft: false
         prerelease: false
         files: release_assets/*
