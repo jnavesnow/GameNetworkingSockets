@@ -2,6 +2,9 @@ name: Build All Platforms (v1.6.1)
 on: [workflow_dispatch]
 
 jobs:
+  # ----------------------------------------------------
+  # 1. ANDROID JOB (Ubuntu Runner)
+  # ----------------------------------------------------
   build-android:
     runs-on: ubuntu-latest
     strategy:
@@ -37,12 +40,20 @@ jobs:
         cmake --build \${BUILD_DIR} --config Release
         \({ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug\){BUILD_DIR}/bin/libgamenetworkingsockets.so
 
+    - name: Prepare Artifact
+      run: |
+        mkdir -p out-android-\${{ matrix.abi }}
+        cp build_android_ matrix.abi /bin/libgamenetworkingsockets.so out-android-{{ matrix.abi }}/
+
     - name: Upload Android Binary
       uses: actions/upload-artifact@v4
       with:
         name: android-\${{ matrix.abi }}
-        path: build_android_\${{ matrix.abi }}/bin/libgamenetworkingsockets.so
+        path: out-android-\${{ matrix.abi }}/
 
+  # ----------------------------------------------------
+  # 2. APPLE JOB (iOS & macOS - Mac Runner)
+  # ----------------------------------------------------
   build-apple:
     runs-on: macos-latest
     steps:
@@ -83,14 +94,21 @@ jobs:
             -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
         cmake --build build_ios --config Release
 
+    - name: Prepare Artifacts
+      run: |
+        mkdir -p out-apple
+        cp build_mac/bin/libgamenetworkingsockets.dylib out-apple/mac-libgamenetworkingsockets.dylib
+        cp build_ios/bin/libgamenetworkingsockets.dylib out-apple/ios-libgamenetworkingsockets.dylib
+
     - name: Upload Apple Binaries
       uses: actions/upload-artifact@v4
       with:
         name: apple-platforms
-        path: |
-          build_mac/bin/libgamenetworkingsockets.dylib
-          build_ios/bin/libgamenetworkingsockets.dylib
+        path: out-apple/
 
+  # ----------------------------------------------------
+  # 3. WINDOWS JOB (PC .dll - Windows Runner)
+  # ----------------------------------------------------
   build-windows:
     runs-on: windows-latest
     steps:
@@ -122,10 +140,55 @@ jobs:
             -DENABLE_EXAMPLES=OFF
         cmake --build build_win --config Release
 
+    - name: Prepare Artifacts
+      run: |
+        mkdir out-windows
+        cp build_win/bin/gamenetworkingsockets.dll out-windows/
+        cp build_win/bin/gamenetworkingsockets.lib out-windows/
+
     - name: Upload Windows Binary
       uses: actions/upload-artifact@v4
       with:
         name: windows-pc
-        path: |
-          build_win/bin/gamenetworkingsockets.dll
-          build_win/bin/gamenetworkingsockets.lib
+        path: out-windows/
+
+  # ----------------------------------------------------
+  # 4. PUBLIC RELEASE GENERATOR JOB
+  # ----------------------------------------------------
+  publish-release:
+    needs: [build-android, build-apple, build-windows] # Waits for all compilation steps to succeed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Grants runner write access to publish to the Releases tab
+    steps:
+    - name: Download Compiled Binaries
+      uses: actions/download-artifact@v4
+      with:
+        path: binaries
+
+    - name: Consolidate Output Files
+      run: |
+        mkdir -p release_assets
+        cp binaries/android-arm64-v8a/libgamenetworkingsockets.so release_assets/libgamenetworkingsockets-android-arm64.so
+        cp binaries/android-armeabi-v7a/libgamenetworkingsockets.so release_assets/libgamenetworkingsockets-android-armv7.so
+        cp binaries/apple-platforms/mac-libgamenetworkingsockets.dylib release_assets/libgamenetworkingsockets-mac.dylib
+        cp binaries/apple-platforms/ios-libgamenetworkingsockets.dylib release_assets/libgamenetworkingsockets-ios.dylib
+        cp binaries/windows-pc/gamenetworkingsockets.dll release_assets/gamenetworkingsockets.dll
+        cp binaries/windows-pc/gamenetworkingsockets.lib release_assets/gamenetworkingsockets.lib
+
+    - name: Create Public GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.6.1-stripped-build
+        name: GameNetworkingSockets v1.6.1 (No Protobuf / Native P2P)
+        body: |
+          Automated cross-compiled release binaries of GameNetworkingSockets v1.6.1.
+          
+          ### 🛠️ Configuration Details:
+          * **Google Protobuf:** Disabled ❌
+          * **Steam Datagram Relay (SDR):** Disabled ❌
+          * **Native ICE / STUN / TURN P2P Networking:** Enabled  (Self-contained, no external deps)
+          * **Build Type:** Release Optimization, Strip-Debug Hooks Applied 🚀
+        draft: false
+        prerelease: false
+        files: release_assets/*
