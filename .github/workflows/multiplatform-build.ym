@@ -2,9 +2,6 @@ name: Build All Platforms (v1.6.1)
 on: [workflow_dispatch]
 
 jobs:
-  # ----------------------------------------------------
-  # 1. ANDROID JOBS
-  # ----------------------------------------------------
   build-android-arm64:
     runs-on: ubuntu-latest
     steps:
@@ -47,7 +44,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-arm64-v8a
-        path: out_arm64/
+        path: out_arm64/libgamenetworkingsockets.so
 
   build-android-armv7:
     runs-on: ubuntu-latest
@@ -91,11 +88,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-armeabi-v7a
-        path: out_armv7/
+        path: out_armv7/libgamenetworkingsockets.so
 
-  # ----------------------------------------------------
-  # 2. APPLE JOB (iOS & macOS - Mac Runner)
-  # ----------------------------------------------------
   build-apple:
     runs-on: macos-latest
     steps:
@@ -148,9 +142,6 @@ jobs:
         name: apple-platforms
         path: out-apple/
 
-  # ----------------------------------------------------
-  # 3. WINDOWS JOB (PC .dll - Windows Runner)
-  # ----------------------------------------------------
   build-windows:
     runs-on: windows-latest
     steps:
@@ -194,9 +185,6 @@ jobs:
         name: windows-pc
         path: out-windows/
 
-  # ----------------------------------------------------
-  # 4. PUBLIC RELEASE GENERATOR JOB
-  # ----------------------------------------------------
   publish-release:
     needs: [build-android-arm64, build-android-armv7, build-apple, build-windows]
     runs-on: ubuntu-latest
@@ -226,11 +214,11 @@ jobs:
         body: |
           Automated cross-compiled release binaries of GameNetworkingSockets v1.6.1.
           
-          ### 🛠️ Configuration Details:
-          * **Google Protobuf:** Disabled ❌
-          * **Steam Datagram Relay (SDR):** Disabled ❌
-          * **Native ICE / STUN / TURN P2P Networking:** Enabled  (Self-contained, no external deps)
-          * **Build Type:** Release Optimization, Strip-Debug Hooks Applied 🚀
+          ### Configuration Details:
+          * Google Protobuf: Disabled
+          * Steam Datagram Relay (SDR): Disabled
+          * Native ICE / STUN / TURN P2P Networking: Enabled
+          * Build Type: Release Optimization, Strip-Debug Hooks Applied
         draft: false
         prerelease: false
         files: release_assets/*
