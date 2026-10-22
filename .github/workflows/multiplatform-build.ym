@@ -1,0 +1,141 @@
+name: Build All Platforms (v1.6.1)
+on: [workflow_dispatch] # Manual trigger button
+
+jobs:
+  # ----------------------------------------------------
+  # 1. ANDROID JOB (Runs on Linux cloud)
+  # ----------------------------------------------------
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
+        submodules: recursive
+
+    - name: Set up NDK & Tools
+      uses: nwtgck/actions-setup-android-ndk@v1
+      with:
+        ndk-version: r25c
+    - run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
+    - name: Compile Android
+      run: |
+        BUILD_DIR="build_android_\${{ matrix.abi }}"
+        cmake -H. -B\${BUILD_DIR} -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="\${{ matrix.abi }}" \
+            -DANDROID_PLATFORM="android-21" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_STEAMDATAGRAMRELAY=OFF \
+            -DENABLE_ICE=ON \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_EXAMPLES=OFF
+        cmake --build \${BUILD_DIR} --config Release
+        \({ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug\){BUILD_DIR}/bin/libgamenetworkingsockets.so
+
+    - name: Upload Android Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-\${{ matrix.abi }}
+        path: build_android_\${{ matrix.abi }}/bin/libgamenetworkingsockets.so
+
+  # ----------------------------------------------------
+  # 2. APPLE JOB (iOS & macOS - Runs on Mac cloud)
+  # ----------------------------------------------------
+  build-apple:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
+        submodules: recursive
+
+    - name: Install Mac Dependencies
+      run: brew install openssl@3 ninja cmake
+
+    - name: Compile macOS (.dylib)
+      run: |
+        cmake -H. -Bbuild_mac -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_STEAMDATAGRAMRELAY=OFF \
+            -DENABLE_ICE=ON \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_EXAMPLES=OFF \
+            -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
+        cmake --build build_mac --config Release
+        strip -S build_mac/bin/libgamenetworkingsockets.dylib
+
+    - name: Compile iOS Framework
+      run: |
+        # iOS requires an explicit Apple toolchain definition target
+        cmake -H. -Bbuild_ios -G Ninja \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_STEAMDATAGRAMRELAY=OFF \
+            -DENABLE_ICE=ON \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_EXAMPLES=OFF \
+            -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
+        cmake --build build_ios --config Release
+
+    - name: Upload Apple Binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: apple-platforms
+        path: |
+          build_mac/bin/libgamenetworkingsockets.dylib
+          build_ios/bin/libgamenetworkingsockets.dylib
+
+  # ----------------------------------------------------
+  # 3. WINDOWS JOB (PC .dll - Runs on Windows cloud)
+  # ----------------------------------------------------
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
+        submodules: recursive
+
+    - name: Setup Windows Environment
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Bootstrap vcpkg dependencies
+      run: |
+        git clone https://github.com
+        .\vcpkg\bootstrap-vcpkg.bat
+        .\vcpkg\vcpkg install openssl:x64-windows
+
+    - name: Compile Windows (.dll)
+      run: |
+        cmake -H. -Bbuild_win -G Ninja `
+            "-DCMAKE_TOOLCHAIN_FILE=\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DENABLE_STEAMDATAGRAMRELAY=OFF `
+            -DENABLE_ICE=ON `
+            -DENABLE_TESTS=OFF `
+            -DENABLE_EXAMPLES=OFF
+        cmake --build build_win --config Release
+
+    - name: Upload Windows Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-pc
+        path: |
+          build_win/bin/gamenetworkingsockets.dll
+          build_win/bin/gamenetworkingsockets.lib
