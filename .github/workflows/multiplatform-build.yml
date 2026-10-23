@@ -1,129 +1,137 @@
-name: Build All Platforms (v1.6.1)
+name: Build Stripped Multiplatform Binaries
 on: [workflow_dispatch]
 
 jobs:
   # ----------------------------------------------------
-  # 1. ANDROID ARM64 BUILD
+  # 1. ANDROID TARGET (Ubuntu Virtual Machine)
   # ----------------------------------------------------
-  build-android-arm64:
+  build-android:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
-      with:
-        repository: ValveSoftware/GameNetworkingSockets
-        ref: v1.6.1
-        submodules: recursive
-
-    - name: Set up Native Android NDK
-      uses: android-actions/setup-android@v3
+    - uses: actions/checkout@v4
 
     - name: Install System Dependencies
-      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
 
     - name: Compile Android arm64-v8a
       run: |
-        cmake -H. -Bbuild_arm64 -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+        cmake -S . -B build_android_arm64 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
-            -DENABLE_TESTS=OFF \
-            -DENABLE_EXAMPLES=OFF
-        cmake --build build_arm64 --config Release
+            -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TOOLS=OFF
+        cmake --build build_android_arm64 --config Release
+        ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_android_arm64/bin/libgamenetworkingsockets.so
 
     - name: Upload Android arm64 Binary
       uses: actions/upload-artifact@v4
       with:
-        name: stripped-android-arm64
-        path: build_arm64/bin/libgamenetworkingsockets.so
+        name: android-arm64-v8a
+        path: build_android_arm64/bin/libgamenetworkingsockets.so
 
   # ----------------------------------------------------
-  # 2. APPLE JOB (iOS & macOS)
+  # 2. IOS TARGET (Apple macOS Virtual Machine)
   # ----------------------------------------------------
-  build-apple:
+  build-ios:
     runs-on: macos-latest
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+
+    - name: Install Homebrew dependencies
+      run: brew install ninja protobuf
+
+    - name: Cache Apple dependency builds
+      uses: actions/cache@v4
       with:
-        repository: ValveSoftware/GameNetworkingSockets
-        ref: v1.6.1
-        submodules: recursive
+        path: build/apple-deps
+        key: apple-deps-ios-${{ hashFiles('cmake/apple/build-apple-deps.sh') }}
 
-    - name: Install Mac Dependencies
-      run: brew install openssl@3 ninja cmake
-
-    - name: Compile macOS (.dylib)
+    - name: Patch & Build xcframework (No Steam Relay / No Protobuf)
       run: |
-        cmake -H. -Bbuild_mac -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_STEAMDATAGRAMRELAY=OFF \
-            -DENABLE_ICE=ON \
-            -DENABLE_TESTS=OFF \
-            -DENABLE_EXAMPLES=OFF \
-            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
-        cmake --build build_mac --config Release
+        # Inject the custom configuration switches directly into Valve's shell builder
+        export CMAKE_ARGS="-DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF"
+        ./cmake/apple/make-xcframework.sh --with-deps
 
-    - name: Compile iOS Framework
-      run: |
-        cmake -H. -Bbuild_ios -G Ninja \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_STEAMDATAGRAMRELAY=OFF \
-            -DENABLE_ICE=ON \
-            -DENABLE_TESTS=OFF \
-            -DENABLE_EXAMPLES=OFF \
-            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
-        cmake --build build_ios --config Release
-
-    - name: Upload Apple Binaries
+    - name: Upload Apple iOS Binary
       uses: actions/upload-artifact@v4
       with:
-        name: stripped-apple-platforms
-        path: |
-          build_mac/bin/libgamenetworkingsockets.dylib
-          build_ios/bin/libgamenetworkingsockets.dylib
+        name: ios-framework
+        path: build/apple/GameNetworkingSockets.xcframework/
 
   # ----------------------------------------------------
-  # 3. WINDOWS JOB (PC .dll)
+  # 3. WINDOWS TARGET (Windows Server Virtual Machine)
   # ----------------------------------------------------
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-bincache
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
-      with:
-        repository: ValveSoftware/GameNetworkingSockets
-        ref: v1.6.1
-        submodules: recursive
+      - uses: actions/checkout@v4
 
-    - name: Setup Windows Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure Git Safe Directories
+        run: git config --global --add safe.directory '*'
+        shell: cmd
 
-    - name: Install Dependencies via vcpkg
-      run: |
-        git clone https://github.com
-        cd vcpkg
-        .\bootstrap-vcpkg.bat
-        .\vcpkg install openssl:x64-windows
-        cd ..
+      - uses: lukka/get-cmake@latest
+      - uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Compile Windows PC Library
-      run: |
-        cmake -H. -Bbuild_win -G Ninja -DCMAKE_TOOLCHAIN_FILE="vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF
-        cmake --build build_win --config Release
+      - name: Initialize VCPKG Path
+        run: |
+          "VCPKG_ROOT=${{ github.workspace }}/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        shell: pwsh
 
-    - name: Upload Windows Binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: stripped-windows-pc
-        path: |
-          build_win/bin/gamenetworkingsockets.dll
-          build_win/bin/gamenetworkingsockets.lib
+      - name: Setup Valve's Explicit VCPKG Pinpoint
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
+          cd /d "${{ env.VCPKG_ROOT }}"
+          git checkout 522253caf47268c1724f486a035e927a42a90092
+          call bootstrap-vcpkg.bat -disableMetrics
+        shell: cmd
+
+      - name: Ensure vcpkg cache directories exist
+        run: |
+          New-Item -ItemType Directory -Path "${{ env.VCPKG_ROOT }}/downloads" -Force | Out-Null
+          New-Item -ItemType Directory -Path "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}" -Force | Out-Null
+        shell: pwsh
+
+      - name: Restore vcpkg caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_ROOT }}/downloads
+            ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-2022-OpenSSL-${{ env.VCToolsVersion }}-522253caf47268c1724f486a035e927a42a90092-${{ hashFiles('vcpkg.json') }}
+
+      - name: Install Windows OpenSSL Triplet
+        run: '"${{env.VCPKG_ROOT}}\vcpkg" install --vcpkg-root "${{env.VCPKG_ROOT}}" --triplet=x64-windows'
+        shell: cmd
+
+      - name: Configure CMake (Release - Stripped)
+        run: |
+          mkdir build-release
+          cd build-release
+          cmake -S .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DBUILD_SHARED_LIBS=ON -DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF "-DCMAKE_TOOLCHAIN_FILE=${{env.VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake" -DUSE_CRYPTO=OpenSSL
+        shell: cmd
+
+      - name: Build Windows PC Binary
+        working-directory: '${{ github.workspace }}'
+        run: cmake --build build-release --config Release
+        shell: cmd
+
+      - name: Upload Windows Library
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-pc
+          path: |
+            build-release/bin/gamenetworkingsockets.dll
+            build_release/bin/gamenetworkingsockets.lib
