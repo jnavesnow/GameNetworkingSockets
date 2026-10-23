@@ -25,7 +25,7 @@ jobs:
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install openssl --triplet=arm64-android --classic
 
-    - name: 🪚 Patch Valve Configuration Scripts (Enable Header Generation)
+    - name: 🪚 Patch Valve Configuration Scripts (Force Macro Registration)
       run: |
         OPENSSL_ROOT="$VCPKG_INSTALLATION_ROOT/installed/arm64-android"
         
@@ -52,10 +52,9 @@ jobs:
             
         src_lines = src_content.splitlines(keepends=True)
         for i, line in enumerate(src_lines):
-            # We ONLY bypass the check loops on the first 25 lines, keeping code generation macros valid
-            if i < 25:
-                if 'find_package(Protobuf REQUIRED)' in line:
-                    src_lines[i] = '# Bypassed check\n'
+            # Bypass only the initial find checks, preserving standard layout definitions
+            if 'find_package(Protobuf' in line:
+                src_lines[i] = '# Bypassed find_package check\n'
         src_content = ''.join(src_lines)
 
         # Remove pedantic packaging helpers but keep the protobuf_generate_cpp blocks fully active!
@@ -72,7 +71,8 @@ jobs:
             f.write(src_content)
         "
         
-        # Hard-force variables directly to the BOTTOM of the file so CMake cannot overwrite them
+        # Force-load the native CMake Protobuf module layout variables globally so the command is registered instantly
+        echo "include(FindProtobuf)" >> CMakeLists.txt
         echo "set(HAVE_EVP_MD_CTX_FREE 1)" >> CMakeLists.txt
         echo "set(HAVE_EVP_PKEY_GET_RAW_PUBLIC_KEY 1)" >> CMakeLists.txt
         echo "set(OPENSSL_FOUND TRUE)" >> CMakeLists.txt
