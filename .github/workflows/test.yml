@@ -31,11 +31,11 @@ jobs:
         ./vcpkg install openssl --triplet=arm64-android
         cd ..
 
-    - name: 🪚 Patch Valve Configuration Scripts (Silence Macro Structures)
+    - name: 🪚 Patch Valve Configuration Scripts (Inject Compiler Modules)
       run: |
         OPENSSL_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
         
-        echo "=== [Safety Pass] Neutralizing pedantic checks ==="
+        echo "=== [Safety Pass] Restoring compiler flags and modules ==="
         python3 -c "
         # 1. Patch master CMakeLists.txt file
         with open('CMakeLists.txt', 'r') as f:
@@ -48,11 +48,11 @@ jobs:
         with open('CMakeLists.txt', 'w') as f:
             f.writelines(lines)
             
-        # 2. Patch nested src/CMakeLists.txt to comment out the entire top block containing the broken loops
+        # 2. Patch nested src/CMakeLists.txt to comment out the first 25 lines
         with open('src/CMakeLists.txt', 'r') as f:
             src_lines = f.readlines()
         for i, line in enumerate(src_lines):
-            if i < 25: # Comment out the first 25 lines completely to eliminate the broken loops and hanging endifs
+            if i < 25:
                 src_lines[i] = '# Bypassed loop: ' + line
             if 'protobuf_generate_cpp' in line:
                 src_lines[i] = '# Bypassed generation check\n'
@@ -62,8 +62,10 @@ jobs:
             f.writelines(src_lines)
         "
         
-        # Hard-force configuration variables directly to the top of the master file so the build maps natively
-        echo "set(HAVE_EVP_MD_CTX_FREE 1)" > CMakeLists.tmp
+        # Hard-force variables AND missing compiler modules directly to the top of the master file
+        echo "include(CheckCCompilerFlag)" > CMakeLists.tmp
+        echo "include(CheckCXXCompilerFlag)" >> CMakeLists.tmp
+        echo "set(HAVE_EVP_MD_CTX_FREE 1)" >> CMakeLists.tmp
         echo "set(HAVE_EVP_PKEY_GET_RAW_PUBLIC_KEY 1)" >> CMakeLists.tmp
         echo "set(OPENSSL_FOUND TRUE)" >> CMakeLists.tmp
         echo "set(Protobuf_FOUND TRUE)" >> CMakeLists.tmp
@@ -77,8 +79,8 @@ jobs:
         cat CMakeLists.txt >> CMakeLists.tmp
         mv CMakeLists.tmp CMakeLists.txt
         
-        echo "=== Verification: Top 20 lines of modified src/CMakeLists.txt ==="
-        head -n 20 src/CMakeLists.txt
+        echo "=== Verification: Top 25 lines of modified CMakeLists.txt ==="
+        head -n 25 CMakeLists.txt
 
     - name: 🚀 Compile GameNetworkingSockets for Android arm64-v8a
       run: |
@@ -88,7 +90,6 @@ jobs:
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=OpenSSL \
             -DUSE_CRYPTO25519=Reference \
