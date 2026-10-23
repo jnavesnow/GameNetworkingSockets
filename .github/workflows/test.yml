@@ -22,7 +22,6 @@ jobs:
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
         
-        # Fixed the spelling mismatch here so both names read google-vcpkg perfectly
         git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
@@ -50,8 +49,8 @@ jobs:
             -DUSE_CRYPTO=libsodium \
             -Dsodium_USE_STATIC_LIBS=ON \
             -Dsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
-            -DSODIUM_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
-            -DSODIUM_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
+            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
