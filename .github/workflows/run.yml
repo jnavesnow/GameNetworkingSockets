@@ -8,24 +8,34 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
         submodules: recursive
 
     - name: Install System Build Tools
-      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
-
-    - name: Compile Bundled Libsodium Natively
       run: |
-        # Cross-compile the included internal libsodium repository folder first
-        cmake -S src/crypto/libsodium -B build_sodium -G Ninja \
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
+
+    - name: Pre-Download and Build Libsodium
+      run: |
+        # Download and build clean standalone sodium for Android architecture verification
+        git clone --depth 1 --branch 1.0.19 https://github.com sodium_src
+        cmake -S sodium_src -B build_sodium -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release
         cmake --build build_sodium --config Release
+        
+        # Consolidate pristine paths to satisfy GameNetworkingSockets compiler checks
+        mkdir -p ${{ github.workspace }}/sodium_install/include
+        mkdir -p ${{ github.workspace }}/sodium_install/lib
+        cp -r sodium_src/src/libsodium/include/* ${{ github.workspace }}/sodium_install/include/
+        cp build_sodium/libsodium.a ${{ github.workspace }}/sodium_install/lib/
 
     - name: Compile GameNetworkingSockets for Android arm64-v8a
       run: |
-        # Hard-force the compiler path parameters to link straight to our compiled sodium outputs
         cmake -S . -B build_dir -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="arm64-v8a" \
@@ -35,16 +45,16 @@ jobs:
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=libsodium \
-            -Dsodium_INCLUDE_DIR="${{ github.workspace }}/src/crypto/libsodium/src/libsodium/include" \
-            -Dsodium_LIBRARY_RELEASE="${{ github.workspace }}/build_sodium/libsodium.a" \
-            -Dsodium_LIBRARY_DEBUG="${{ github.workspace }}/build_sodium/libsodium.a" \
+            -Dsodium_INCLUDE_DIR="${{ github.workspace }}/sodium_install/include" \
+            -Dsodium_LIBRARY_RELEASE="${{ github.workspace }}/sodium_install/lib/libsodium.a" \
+            -Dsodium_LIBRARY_DEBUG="${{ github.workspace }}/sodium_install/lib/libsodium.a" \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
             
         cmake --build build_dir --config Release
         
-        # Strip all debug flags out to keep it lightweight
+        # Clean up binary footprint and strip debug data
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
