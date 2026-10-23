@@ -60,7 +60,9 @@ jobs:
         src_content = src_content.replace('protobuf::libprotobuf', '\"/usr/include\"')
         src_content = src_content.replace('OpenSSL::Crypto', '\"${OPENSSL_CRYPTO_LIBRARY}\" \"${OPENSSL_SSL_LIBRARY}\" -ldl -lm')
         src_content = src_content.replace('find_package(Protobuf REQUIRED)', '# Bypassed check')
-        src_content = src_content.replace('protobuf_generate_cpp(SRCS HDRS ${MESSAGES_PROTOS})', '# Bypassed runtime generation macro')
+        
+        # Completely neutralize Valve's unreliable inline generation macro pass
+        src_content = re.sub(r'protobuf_generate_cpp\s*\(.*?\)', '# Bypassed runtime generation macro', src_content, flags=re.DOTALL)
 
         with open('src/CMakeLists.txt', 'w') as f:
             f.write(src_content)
