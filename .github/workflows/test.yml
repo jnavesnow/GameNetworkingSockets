@@ -22,6 +22,7 @@ jobs:
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
         
+        # Aligned both names to google-vcpkg to fix the directory navigation crash
         git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
