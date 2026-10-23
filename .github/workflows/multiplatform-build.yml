@@ -1,35 +1,31 @@
 name: Build All Platforms (v1.6.1)
-on: [workflow_dispatch] # Manual trigger button
+on: [workflow_dispatch]
 
 jobs:
   # ----------------------------------------------------
-  # 1. ANDROID JOB (Runs on Linux cloud)
+  # 1. ANDROID ARM64 BUILD
   # ----------------------------------------------------
-  build-android:
+  build-android-arm64:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        abi: [arm64-v8a, armeabi-v7a]
     steps:
-    - name: Checkout Code
+    - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         repository: ValveSoftware/GameNetworkingSockets
         ref: v1.6.1
         submodules: recursive
 
-    - name: Set up NDK & Tools
-      uses: nwtgck/actions-setup-android-ndk@v1
-      with:
-        ndk-version: r25c
-    - run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+    - name: Set up Native Android NDK
+      uses: android-actions/setup-android@v3
 
-    - name: Compile Android
+    - name: Install System Dependencies
+      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
+    - name: Compile Android arm64-v8a
       run: |
-        BUILD_DIR="build_android_\${{ matrix.abi }}"
-        cmake -H. -B\${BUILD_DIR} -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI="\${{ matrix.abi }}" \
+        cmake -H. -Bbuild_arm64 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -37,22 +33,21 @@ jobs:
             -DENABLE_ICE=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_EXAMPLES=OFF
-        cmake --build \${BUILD_DIR} --config Release
-        \({ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug\){BUILD_DIR}/bin/libgamenetworkingsockets.so
+        cmake --build build_arm64 --config Release
 
-    - name: Upload Android Binary
+    - name: Upload Android arm64 Binary
       uses: actions/upload-artifact@v4
       with:
-        name: android-\${{ matrix.abi }}
-        path: build_android_\${{ matrix.abi }}/bin/libgamenetworkingsockets.so
+        name: stripped-android-arm64
+        path: build_arm64/bin/libgamenetworkingsockets.so
 
   # ----------------------------------------------------
-  # 2. APPLE JOB (iOS & macOS - Runs on Mac cloud)
+  # 2. APPLE JOB (iOS & macOS)
   # ----------------------------------------------------
   build-apple:
     runs-on: macos-latest
     steps:
-    - name: Checkout Code
+    - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         repository: ValveSoftware/GameNetworkingSockets
@@ -71,13 +66,11 @@ jobs:
             -DENABLE_ICE=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_EXAMPLES=OFF \
-            -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
         cmake --build build_mac --config Release
-        strip -S build_mac/bin/libgamenetworkingsockets.dylib
 
     - name: Compile iOS Framework
       run: |
-        # iOS requires an explicit Apple toolchain definition target
         cmake -H. -Bbuild_ios -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
@@ -87,55 +80,50 @@ jobs:
             -DENABLE_ICE=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_EXAMPLES=OFF \
-            -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
         cmake --build build_ios --config Release
 
     - name: Upload Apple Binaries
       uses: actions/upload-artifact@v4
       with:
-        name: apple-platforms
+        name: stripped-apple-platforms
         path: |
           build_mac/bin/libgamenetworkingsockets.dylib
           build_ios/bin/libgamenetworkingsockets.dylib
 
   # ----------------------------------------------------
-  # 3. WINDOWS JOB (PC .dll - Runs on Windows cloud)
+  # 3. WINDOWS JOB (PC .dll)
   # ----------------------------------------------------
   build-windows:
     runs-on: windows-latest
     steps:
-    - name: Checkout Code
+    - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         repository: ValveSoftware/GameNetworkingSockets
         ref: v1.6.1
         submodules: recursive
 
-    - name: Setup Windows Environment
+    - name: Setup Windows Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Bootstrap vcpkg dependencies
+    - name: Install Dependencies via vcpkg
       run: |
         git clone https://github.com
-        .\vcpkg\bootstrap-vcpkg.bat
-        .\vcpkg\vcpkg install openssl:x64-windows
+        cd vcpkg
+        .\bootstrap-vcpkg.bat
+        .\vcpkg install openssl:x64-windows
+        cd ..
 
-    - name: Compile Windows (.dll)
+    - name: Compile Windows PC Library
       run: |
-        cmake -H. -Bbuild_win -G Ninja `
-            "-DCMAKE_TOOLCHAIN_FILE=\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DBUILD_SHARED_LIBS=ON `
-            -DENABLE_STEAMDATAGRAMRELAY=OFF `
-            -DENABLE_ICE=ON `
-            -DENABLE_TESTS=OFF `
-            -DENABLE_EXAMPLES=OFF
+        cmake -H. -Bbuild_win -G Ninja -DCMAKE_TOOLCHAIN_FILE="vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF
         cmake --build build_win --config Release
 
     - name: Upload Windows Binary
       uses: actions/upload-artifact@v4
       with:
-        name: windows-pc
+        name: stripped-windows-pc
         path: |
           build_win/bin/gamenetworkingsockets.dll
           build_win/bin/gamenetworkingsockets.lib
