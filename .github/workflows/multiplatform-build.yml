@@ -28,6 +28,7 @@ jobs:
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=libsodium \
+            -DFETCHCONTENT_FULLY_DISCONNECTED=OFF \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
@@ -68,17 +69,13 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ios-framework
-        path: build/apple/gamenetworkingsockets.xcframework/
+        path: build/GameNetworkingSockets.xcframework/
 
   # ----------------------------------------------------
   # 3. WINDOWS TARGET (Windows Server Virtual Machine)
   # ----------------------------------------------------
   build-windows:
     runs-on: windows-2022
-    env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-bincache
-      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,46 +88,27 @@ jobs:
       - uses: lukka/get-cmake@latest
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Initialize VCPKG Path
-        run: |
-          "VCPKG_ROOT=${{ github.workspace }}/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        shell: pwsh
-
       - name: Setup Valve's Explicit VCPKG Pinpoint
         run: |
-          git clone https://github.com "${{ env.VCPKG_ROOT }}"
-          cd /d "${{ env.VCPKG_ROOT }}"
+          git clone https://github.com vcpkg
+          cd vcpkg
           git checkout 522253caf47268c1724f486a035e927a42a90092
           call bootstrap-vcpkg.bat -disableMetrics
         shell: cmd
 
-      - name: Ensure vcpkg cache directories exist
-        run: |
-          New-Item -ItemType Directory -Path "${{ env.VCPKG_ROOT }}/downloads" -Force | Out-Null
-          New-Item -ItemType Directory -Path "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}" -Force | Out-Null
-        shell: pwsh
-
-      - name: Restore vcpkg caches
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.VCPKG_ROOT }}/downloads
-            ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-2022-OpenSSL-${{ env.VCToolsVersion }}-522253caf47268c1724f486a035e927a42a90092-${{ hashFiles('vcpkg.json') }}
-
       - name: Install Windows OpenSSL Triplet
-        run: '"${{env.VCPKG_ROOT}}\vcpkg" install --vcpkg-root "${{env.VCPKG_ROOT}}" --triplet=x64-windows'
+        run: |
+          .\vcpkg\vcpkg install --triplet=x64-windows
         shell: cmd
 
       - name: Configure CMake (Release - Stripped)
         run: |
           mkdir build-release
           cd build-release
-          cmake -S .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DBUILD_SHARED_LIBS=ON -DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF "-DCMAKE_TOOLCHAIN_FILE=${{env.VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake" -DUSE_CRYPTO=OpenSSL
+          cmake -S .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DBUILD_SHARED_LIBS=ON -DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DUSE_CRYPTO=OpenSSL
         shell: cmd
 
       - name: Build Windows PC Binary
-        working-directory: '${{ github.workspace }}'
         run: cmake --build build-release --config Release
         shell: cmd
 
