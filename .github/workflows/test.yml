@@ -22,7 +22,6 @@ jobs:
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
         
-        # Aligned both names to google-vcpkg to fix the directory navigation crash
         git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
@@ -48,10 +47,10 @@ jobs:
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=libsodium \
-            -Dsodium_USE_STATIC_LIBS=ON \
+            -Dsodium_USE_STATIC_LIBS=OFF \
             -Dsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
-            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
-            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
+            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.so" \
+            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.so" \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
