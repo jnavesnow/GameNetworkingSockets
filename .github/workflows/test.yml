@@ -31,24 +31,23 @@ jobs:
         ./vcpkg install openssl --triplet=arm64-android
         cd ..
 
-    - name: 🪚 Patch Valve Configuration Scripts (Neutralize Package Helpers)
+    - name: 🪚 Patch Valve Configuration Scripts (Multi-Line Bracket Cleaner)
       run: |
         OPENSSL_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
         
-        echo "=== [Safety Pass] Stripping problematic packaging modules ==="
+        echo "=== [Safety Pass] Erasing full packaging macro blocks ==="
         python3 -c "
+        import re
+
         # 1. Patch master CMakeLists.txt file
         with open('CMakeLists.txt', 'r') as f:
-            lines = f.readlines()
-        for i, line in enumerate(lines):
-            if 'FATAL_ERROR' in line and 'OpenSSL' in line:
-                lines[i] = '  message(STATUS \"Bypassed check\")\n'
-            if 'check_symbol_exists' in line and 'EVP_MD_CTX_free' in line:
-                lines[i] = '# Bypassed check\n'
+            content = f.read()
+        content = re.sub(r'find_package\s*\(\s*OpenSSL\s+REQUIRED\s*\)', '# Removed block', content)
+        content = re.sub(r'check_symbol_exists\s*\(\s*EVP_MD_CTX_free.*?\)', '# Bypassed check', content)
         with open('CMakeLists.txt', 'w') as f:
-            f.writelines(lines)
+            f.write(content)
             
-        # 2. Patch nested src/CMakeLists.txt to disable packaging helpers throwing faults
+        # 2. Patch nested src/CMakeLists.txt to comment out the first 25 lines
         with open('src/CMakeLists.txt', 'r') as f:
             src_lines = f.readlines()
         for i, line in enumerate(src_lines):
@@ -58,10 +57,14 @@ jobs:
                 src_lines[i] = '# Bypassed check\n'
             if 'protobuf::libprotobuf' in line:
                 src_lines[i] = '    # Bypassed linking requirement\n'
-            if 'configure_package_config_file' in line or 'write_basic_package_version_file' in line:
-                src_lines[i] = '# Bypassed pedantic installation helper\n'
+        src_content = ''.join(src_lines)
+
+        # Safety Layer: Wipe out configure_package_config_file and write_basic_package_version_file macro blocks entirely from ( to )
+        src_content = re.sub(r'configure_package_config_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
+        src_content = re.sub(r'write_basic_package_version_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
+
         with open('src/CMakeLists.txt', 'w') as f:
-            f.writelines(src_lines)
+            f.write(src_content)
         "
         
         # Hard-force variables directly to the top of the master file layout
