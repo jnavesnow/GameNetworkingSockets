@@ -11,42 +11,26 @@ jobs:
         submodules: recursive
 
     - name: Install System Build Tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
-
-    - name: Setup VCPKG and Cross-Compile OpenSSL for Android
-      run: |
-        # 1. Safely clone Microsoft vcpkg toolchain (REPAIRED LINK)
-        git clone https://github.com google-vcpkg
-        cd google-vcpkg
-        ./bootstrap-vcpkg.sh -disableMetrics
-        
-        # 2. Force compile OpenSSL strictly targeting the Android ARM64 hardware layout (REPAIRED PATH)
-        export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
-        ./vcpkg install openssl:arm64-android
-        cd ..
+      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
 
     - name: Compile GameNetworkingSockets for Android arm64-v8a
       run: |
         cmake -S . -B build_dir -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/google-vcpkg/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
-            -DVCPKG_TARGET_TRIPLET=arm64-android \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
-            -DUSE_CRYPTO=OpenSSL \
+            -DUSE_CRYPTO=libsodium \
+            -DUSE_INTERNAL_LIBSODIUM=ON \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
             
         cmake --build build_dir --config Release
         
-        # Strip debug symbols to keep the file ultra-lightweight
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
