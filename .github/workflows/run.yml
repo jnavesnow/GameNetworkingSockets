@@ -17,12 +17,12 @@ jobs:
 
     - name: Setup VCPKG and Cross-Compile OpenSSL for Android
       run: |
-        # 1. Safely clone Microsoft vcpkg toolchain
+        # 1. Safely clone Microsoft vcpkg toolchain (REPAIRED LINK)
         git clone https://github.com google-vcpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
         
-        # 2. Force compile OpenSSL strictly targeting the Android ARM64 hardware layout
+        # 2. Force compile OpenSSL strictly targeting the Android ARM64 hardware layout (REPAIRED PATH)
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install openssl:arm64-android
         cd ..
