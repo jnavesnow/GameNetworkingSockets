@@ -15,10 +15,9 @@ jobs:
     - name: Install System Build Tools
       run: |
         sudo apt-get update
-        # Added autoconf, automake, libtool, and autoconf-archive required by libsodium
         sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev autoconf automake libtool autoconf-archive
 
-    - name: Setup VCPKG and Cross-Compile Sodium
+    - name: Setup VCPKG and Cross-Compile Dependencies
       run: |
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
@@ -27,8 +26,9 @@ jobs:
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
         
-        # Build libsodium strictly targeting the Android ARM64 profile
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+        
+        # Explicitly added libsodium here alongside the triplet architecture check
         ./vcpkg install libsodium --triplet=arm64-android --classic
         cd ..
 
@@ -51,7 +51,7 @@ jobs:
             
         cmake --build build_dir --config Release
         
-        # Clean up binary overhead
+        # Clean up binary overhead and strip debug codes
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
