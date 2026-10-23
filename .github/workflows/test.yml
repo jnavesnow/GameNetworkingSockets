@@ -12,15 +12,58 @@ jobs:
         ref: v1.6.1
         submodules: recursive
 
-    - name: Quick Directory & Triplet Verification
+    - name: Install System Build Tools
       run: |
-        echo "=== STEP 1: Checking Pre-installed GitHub Runner Paths ==="
-        if [ -d "$VCPKG_INSTALLATION_ROOT" ]; then
-          echo "Found Native GitHub VCPKG at: $VCPKG_INSTALLATION_ROOT"
-          echo "=== Available Pre-built Android Directories: ==="
-          ls -la $VCPKG_INSTALLATION_ROOT/installed/ || echo "No prebuilt packages found in root."
-        fi
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev autoconf automake libtool autoconf-archive
+
+    - name: Setup VCPKG and Build Only Sodium
+      run: |
+        # 1. Bypass clipping glitch using composite string assignment
+        HOST_URL="https://github.com"
+        REPO_PATH="/microsoft/vcpkg.git"
         
-        echo "=== STEP 2: Testing Local Workspace Mapping ==="
-        mkdir -p build_test_check
-        echo "Dry-run check completed safely."
+        git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
+        cd google-vcpkg
+        ./bootstrap-vcpkg.sh -disableMetrics
+        
+        # 2. Delete Valve's manifest file locally so vcpkg stays strictly in classic mode
+        rm -f ../vcpkg.json
+        
+        # 3. Explicitly install ONLY libsodium (Bypasses the 20-minute Protobuf build loop!)
+        export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+        ./vcpkg install libsodium --triplet=arm64-android
+        cd ..
+
+    - name: Compile GameNetworkingSockets for Android arm64-v8a
+      run: |
+        # 4. Map the newly built libsodium parameters directly into the CMake execution string
+        SODIUM_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
+        
+        cmake -S . -B build_dir -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="arm64-v8a" \
+            -DANDROID_PLATFORM="android-21" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_STEAMDATAGRAMRELAY=OFF \
+            -DENABLE_ICE=ON \
+            -DUSE_CRYPTO=libsodium \
+            -Dsodium_USE_STATIC_LIBS=ON \
+            -Dsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
+            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TOOLS=OFF
+            
+        cmake --build build_dir --config Release
+        
+        # 5. Clean up binary overhead and strip debug data structures
+        ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
+
+    - name: Upload Finished Android arm64 Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: stripped-android-arm64
+        path: build_dir/bin/libgamenetworkingsockets.so
