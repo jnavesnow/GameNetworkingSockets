@@ -3,36 +3,51 @@ on: [workflow_dispatch]
 
 jobs:
   build-android-arm64:
-    runs-on: macos-latest # Using macOS because Valve's script relies on macOS/Xcode SDK matching environments for their unified script setups
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install Dependencies
-      run: brew install ninja protobuf cmake
-
-    - name: Compile Prerequisites and GameNetworkingSockets
+    - name: Install System Build Tools
       run: |
-        # 1. Execute Valve's official script that handles Android OpenSSL cross-compilation internally
-        ./cmake/apple/build-apple-deps.sh --android-arm64
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
+
+    - name: Setup VCPKG and Cross-Compile OpenSSL for Android
+      run: |
+        # 1. Safely clone Microsoft vcpkg toolchain
+        git clone https://github.com google-vcpkg
+        cd google-vcpkg
+        ./bootstrap-vcpkg.sh -disableMetrics
         
-        # 2. Force the standard build with SDR/Protobuf disabled for your dynamic library pass
+        # 2. Force compile OpenSSL strictly targeting the Android ARM64 hardware layout
+        export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+        ./vcpkg install openssl:arm64-android
+        cd ..
+
+    - name: Compile GameNetworkingSockets for Android arm64-v8a
+      run: |
         cmake -S . -B build_dir -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/google-vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
+            -DVCPKG_TARGET_TRIPLET=arm64-android \
             -DANDROID_ABI="arm64-v8a" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
+            -DUSE_CRYPTO=OpenSSL \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
-            -DBUILD_TOOLS=OFF \
-            -DOPENSSL_ROOT_DIR="$(pwd)/build/apple-deps/android-arm64"
+            -DBUILD_TOOLS=OFF
             
         cmake --build build_dir --config Release
+        
+        # Strip debug symbols to keep the file ultra-lightweight
+        ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
       uses: actions/upload-artifact@v4
