@@ -15,17 +15,27 @@ jobs:
     - name: Install System Build Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
+        # Added autoconf, automake, libtool, and autoconf-archive required by libsodium
+        sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev autoconf automake libtool autoconf-archive
 
-    - name: Run GitHub Native VCPKG for Android
+    - name: Setup VCPKG and Cross-Compile Sodium
       run: |
-        # Force classic mode with --classic to bypass the manifest file check seamlessly
-        $VCPKG_INSTALLATION_ROOT/vcpkg install libsodium --triplet=arm64-android --classic
+        HOST_URL="https://github.com"
+        REPO_PATH="/microsoft/vcpkg.git"
+        
+        git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
+        cd google-vcpkg
+        ./bootstrap-vcpkg.sh -disableMetrics
+        
+        # Build libsodium strictly targeting the Android ARM64 profile
+        export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+        ./vcpkg install libsodium --triplet=arm64-android --classic
+        cd ..
 
     - name: Compile GameNetworkingSockets for Android arm64-v8a
       run: |
         cmake -S . -B build_dir -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/google-vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DVCPKG_TARGET_TRIPLET=arm64-android \
             -DANDROID_ABI="arm64-v8a" \
@@ -41,7 +51,7 @@ jobs:
             
         cmake --build build_dir --config Release
         
-        # Clean up binary footprint and strip debug data
+        # Clean up binary overhead
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
