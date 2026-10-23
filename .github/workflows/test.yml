@@ -25,7 +25,7 @@ jobs:
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install openssl --triplet=arm64-android --classic
 
-    - name: 🪚 Patch Valve Configuration Scripts (Force Macro Registration)
+    - name: 🪚 Patch Valve Configuration Scripts (Force Static Variable Bindings)
       run: |
         OPENSSL_ROOT="$VCPKG_INSTALLATION_ROOT/installed/arm64-android"
         
@@ -50,45 +50,17 @@ jobs:
         with open('src/CMakeLists.txt', 'r') as f:
             src_content = f.read()
 
-        # Remove pedantic packaging helpers but keep the protobuf loops active
+        # Remove pedantic packaging helpers and compiler flag verification loops completely
         src_content = re.sub(r'check_c_compiler_flag\s*\(.*?\)', '# Neutralized compiler flag loop', src_content, flags=re.DOTALL)
         src_content = re.sub(r'check_cxx_compiler_flag\s*\(.*?\)', '# Neutralized compiler flag loop', src_content, flags=re.DOTALL)
         src_content = re.sub(r'configure_package_config_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
         src_content = re.sub(r'write_basic_package_version_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
         
-        # Point structural target mapping variables away from alias packages to raw directories
+        # Point the structural target mapping variables away from alias packages to the raw include directories
         src_content = src_content.replace('protobuf::libprotobuf', '\"/usr/include\"')
         src_content = src_content.replace('OpenSSL::Crypto', '\"${OPENSSL_CRYPTO_LIBRARY}\" \"${OPENSSL_SSL_LIBRARY}\" -ldl -lm')
         src_content = src_content.replace('find_package(Protobuf REQUIRED)', '# Bypassed check')
-
-        # HACK OVERRIDE: Inject our replacement custom helper using flat string concat to block shell parsing bugs
-        func_lines = [
-            'function(protobuf_generate_cpp SRCS HDRS)',
-            '  cmake_parse_arguments(protobuf \"\" \"\" \"\" ${ARGN})',
-            '  set(srcs_list)',
-            '  set(hdrs_list)',
-            '  foreach(file ${protobuf_UNPARSED_ARGUMENTS})',
-            '    get_filename_component(abs_file ${file} ABSOLUTE)',
-            '    get_filename_component(name_we ${file} NAME_WE)',
-            '    set(out_src \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.cc\")',
-            '    set(out_hdr \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.h\")',
-            '    add_custom_command(',
-            '      OUTPUT \"${out_src}\" \"${out_hdr}\"',
-            '      COMMAND /usr/bin/protoc --cpp_out=${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR} ${abs_file}',
-            '      DEPENDS ${abs_file}',
-            '      COMMENT \"Running host protoc on ${file}\"',
-            '      VERBATIM',
-            '    )',
-            '    list(APPEND srcs_list \"${out_src}\")',
-            '    list(APPEND hdrs_list \"${out_hdr}\")',
-            '  endforeach()',
-            '  set(${SRCS} ${srcs_list} PARENT_SCOPE)',
-            '  set(${HDRS} ${hdrs_list} PARENT_SCOPE)',
-            'endfunction()'
-        ]
-        
-        macro_definition = '\n'.join(func_lines) + '\n'
-        src_content = macro_definition + src_content
+        src_content = src_content.replace('protobuf_generate_cpp(SRCS HDRS ${MESSAGES_PROTOS})', '# Bypassed runtime generation macro')
 
         with open('src/CMakeLists.txt', 'w') as f:
             f.write(src_content)
@@ -107,12 +79,20 @@ jobs:
         echo "set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT}/lib/libcrypto.a)" >> CMakeLists.txt
         echo "set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT}/lib/libssl.a)" >> CMakeLists.txt
         
-        # Map binary directories globally so the compiler discovers generated message headers natively
+        # Explicitly map our main workspace output folders natively into the include tree paths
         echo "include_directories(${OPENSSL_ROOT}/include /usr/include \${CMAKE_CURRENT_BINARY_DIR}/src)" >> CMakeLists.txt
         echo "link_libraries(${OPENSSL_ROOT}/lib/libssl.a ${OPENSSL_ROOT}/lib/libcrypto.a -ldl -lm)" >> CMakeLists.txt
-        
-        echo "=== Verification: Last 15 lines of modified CMakeLists.txt ==="
-        tail -n 15 CMakeLists.txt
+
+    - name: 🚀 Force-Generate Network Messaging Headers
+      run: |
+        # Safety Layer: Manually invoke protoc directly on the disk ahead of compilation to eliminate the race condition completely
+        mkdir -p build_dir/src
+        for file in src/*.proto; do
+          echo "Baking layout header: ${file}"
+          /usr/bin/protoc --cpp_out=build_dir/src -Isrc "${file}"
+        done
+        echo "=== Verification: Generated header files ==="
+        ls -la build_dir/src
 
     - name: 🚀 Compile GameNetworkingSockets for Android arm64-v8a
       run: |
