@@ -25,19 +25,61 @@ jobs:
         git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
-        
-        # Delete Valve's manifest file locally so vcpkg stays strictly in classic mode
         rm -f ../vcpkg.json
         
-        # Explicitly install ONLY libsodium
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install libsodium --triplet=arm64-android
         cd ..
 
-    - name: Compile GameNetworkingSockets for Android arm64-v8a
+    - name: 🛡️ [Safety Layer] Global Artifact Mirroring Matrix
       run: |
         SODIUM_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
         
+        echo "=== [DEBUG] Original vcpkg Output Structure ==="
+        ls -R ${SODIUM_ROOT} || true
+        
+        # Ensure all possible target directories exist across Release and Debug trees
+        mkdir -p "${SODIUM_ROOT}/lib"
+        mkdir -p "${SODIUM_ROOT}/debug/lib"
+        mkdir -p "${SODIUM_ROOT}/bin"
+        mkdir -p "${SODIUM_ROOT}/debug/bin"
+        
+        # 1. Fallback for Static Libraries (.a)
+        if [ -f "${SODIUM_ROOT}/lib/libsodium.a" ]; then
+          echo "Found libsodium.a - Duplicating across all extensions and targets..."
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/lib/sodium.a" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/lib/libsodium.so" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/lib/sodium.so" || true
+          
+          # Mirror directly to Debug folder structures
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/debug/lib/libsodium.a" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/debug/lib/sodium.a" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/debug/lib/libsodium.so" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.a" "${SODIUM_ROOT}/debug/lib/sodium.so" || true
+        fi
+        
+        # 2. Fallback for Shared Libraries (.so)
+        if [ -f "${SODIUM_ROOT}/lib/libsodium.so" ]; then
+          echo "Found libsodium.so - Duplicating across all extensions and targets..."
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/lib/sodium.so" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/lib/libsodium.a" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/lib/sodium.a" || true
+          
+          # Mirror directly to Debug folder structures
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/debug/lib/libsodium.so" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/debug/lib/sodium.so" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/debug/lib/libsodium.a" || true
+          cp "${SODIUM_ROOT}/lib/libsodium.so" "${SODIUM_ROOT}/debug/lib/sodium.a" || true
+        fi
+        
+        echo "=== [DEBUG] Post-Mirrored Hardened Structure ==="
+        ls -R ${SODIUM_ROOT}
+
+    - name: 🚀 Compile GameNetworkingSockets with All Variable Matrix Overrides
+      run: |
+        SODIUM_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
+        
+        # Injecting every permutation of Case-Sensitivity, Variable Names, Extensions, and Direct File Mappings
         cmake -S . -B build_dir -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="arm64-v8a" \
@@ -47,17 +89,38 @@ jobs:
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=libsodium \
-            -Dsodium_USE_STATIC_LIBS=OFF \
+            -Dsodium_USE_STATIC_LIBS=ON \
+            -DSODIUM_USE_STATIC_LIBS=ON \
+            -Dunofficial-sodium_DIR="${SODIUM_ROOT}/share/unofficial-sodium" \
+            -Dunofficial-sodium_DIR_RELEASE="${SODIUM_ROOT}/share/unofficial-sodium" \
+            -Dlibsodium_DIR="${SODIUM_ROOT}/share/libsodium" \
+            -Dlibsodium_DIR_RELEASE="${SODIUM_ROOT}/share/libsodium" \
+            -Dsodium_DIR="${SODIUM_ROOT}/share/libsodium" \
+            -DSODIUM_DIR="${SODIUM_ROOT}/share/libsodium" \
+            -Dsodium_DIR_RELEASE="${SODIUM_ROOT}/share/libsodium" \
+            -DSODIUM_DIR_RELEASE="${SODIUM_ROOT}/share/libsodium" \
             -Dsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
-            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.so" \
-            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.so" \
+            -DSODIUM_INCLUDE_DIR="${SODIUM_ROOT}/include" \
+            -Dsodium_INCLUDE_DIRS="${SODIUM_ROOT}/include" \
+            -DSODIUM_INCLUDE_DIRS="${SODIUM_ROOT}/include" \
+            -Dlibsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
+            -Dlibsodium_INCLUDE_DIRS="${SODIUM_ROOT}/include" \
+            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -DSODIUM_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/lib/libsodium.a" \
+            -DSODIUM_LIBRARY_DEBUG="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dlibsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dlibsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dsodium_LIBRARIES="${SODIUM_ROOT}/lib/libsodium.a" \
+            -DSODIUM_LIBRARIES="${SODIUM_ROOT}/lib/libsodium.a" \
+            -Dsodium_LIBRARY="${SODIUM_ROOT}/lib/libsodium.a" \
+            -DSODIUM_LIBRARY="${SODIUM_ROOT}/lib/libsodium.a" \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
             
         cmake --build build_dir --config Release
         
-        # Clean up binary overhead and strip debug data structures
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
