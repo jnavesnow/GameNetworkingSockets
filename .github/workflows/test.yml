@@ -70,7 +70,9 @@ jobs:
             f.write(src_content)
         "
         
-        # Hard-force variables directly to the BOTTOM of the file so CMake cannot overwrite them
+        # Hard-force variables AND missing tool modules directly to the BOTTOM of the file
+        echo "include(CheckCCompilerFlag)" >> CMakeLists.txt
+        echo "include(CheckCXXCompilerFlag)" >> CMakeLists.txt
         echo "set(HAVE_EVP_MD_CTX_FREE 1)" >> CMakeLists.txt
         echo "set(HAVE_EVP_PKEY_GET_RAW_PUBLIC_KEY 1)" >> CMakeLists.txt
         echo "set(OPENSSL_FOUND TRUE)" >> CMakeLists.txt
@@ -83,8 +85,8 @@ jobs:
         echo "include_directories(\"${OPENSSL_ROOT}/include\")" >> CMakeLists.txt
         echo "link_libraries(\"${OPENSSL_ROOT}/lib/libssl.a\" \"${OPENSSL_ROOT}/lib/libcrypto.a\" -ldl -lm)" >> CMakeLists.txt
         
-        echo "=== Verification: Last 15 lines of modified CMakeLists.txt ==="
-        tail -n 15 CMakeLists.txt
+        echo "=== Verification: Last 20 lines of modified CMakeLists.txt ==="
+        tail -n 20 CMakeLists.txt
 
     - name: 🚀 Compile GameNetworkingSockets for Android arm64-v8a
       run: |
@@ -94,7 +96,6 @@ jobs:
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
             -DUSE_CRYPTO=OpenSSL \
             -DUSE_CRYPTO25519=Reference \
