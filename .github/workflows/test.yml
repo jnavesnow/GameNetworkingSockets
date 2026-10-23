@@ -87,11 +87,13 @@ jobs:
 
     - name: 🚀 Force-Generate Network Messaging Headers
       run: |
-        # Safety Layer: Manually invoke protoc directly on the disk ahead of compilation to eliminate the race condition completely
+        # Safety Layer: Manually invoke protoc directly on the disk against the true internal message path directory
         mkdir -p build_dir/src
-        for file in src/*.proto; do
-          echo "Baking layout header: ${file}"
-          /usr/bin/protoc --cpp_out=build_dir/src -Isrc "${file}"
+        for file in src/messages/*.proto; do
+          if [ -f "$file" ]; then
+            echo "Baking layout header: ${file}"
+            /usr/bin/protoc --cpp_out=build_dir/src -Isrc/messages "${file}"
+          fi
         done
         echo "=== Verification: Generated header files ==="
         ls -la build_dir/src
