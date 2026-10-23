@@ -52,7 +52,7 @@ jobs:
             
         src_lines = src_content.splitlines(keepends=True)
         for i, line in enumerate(src_lines):
-            # We ONLY bypass the check loops on the first 25 lines, keeping code generation pristine
+            # We ONLY bypass the check loops on the first 25 lines, keeping code generation macros valid
             if i < 25:
                 if 'find_package(Protobuf REQUIRED)' in line:
                     src_lines[i] = '# Bypassed check\n'
@@ -84,7 +84,9 @@ jobs:
         echo "set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT}/include)" >> CMakeLists.txt
         echo "set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT}/lib/libcrypto.a)" >> CMakeLists.txt
         echo "set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT}/lib/libssl.a)" >> CMakeLists.txt
-        echo "include_directories(${OPENSSL_ROOT}/include /usr/include)" >> CMakeLists.txt
+        
+        # Map the binary layout directory globally so the compiler finds the generated message headers natively
+        echo "include_directories(${OPENSSL_ROOT}/include /usr/include \${CMAKE_CURRENT_BINARY_DIR}/src)" >> CMakeLists.txt
         echo "link_libraries(${OPENSSL_ROOT}/lib/libssl.a ${OPENSSL_ROOT}/lib/libcrypto.a -ldl -lm)" >> CMakeLists.txt
         
         echo "=== Verification: Last 15 lines of modified CMakeLists.txt ==="
