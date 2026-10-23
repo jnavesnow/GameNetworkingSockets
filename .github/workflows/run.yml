@@ -14,8 +14,10 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y ninja-build cmake protobuf-compiler libprotobuf-dev
 
     - name: Setup VCPKG and Cross-Compile Sodium
+      env:
+        # Securely pass the pre-configured system NDK straight to the vcpkg build compiler
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
       run: |
-        # Reconstruct the URL as a composite string to block the browser's clipping glitch
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
         
@@ -23,8 +25,7 @@ jobs:
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
         
-        # Build libsodium strictly targeting the Android ARM64 profile
-        export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+        # Build libsodium strictly targeting the Android ARM64 architecture profile
         ./vcpkg install libsodium:arm64-android
         cd ..
 
@@ -47,7 +48,7 @@ jobs:
             
         cmake --build build_dir --config Release
         
-        # Clean up binary overhead
+        # Clean up binary footprint and strip debug data
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
