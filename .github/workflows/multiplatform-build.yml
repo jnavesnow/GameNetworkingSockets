@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: Install System Dependencies
       run: |
@@ -25,6 +27,7 @@ jobs:
             -DBUILD_SHARED_LIBS=ON \
             -DENABLE_STEAMDATAGRAMRELAY=OFF \
             -DENABLE_ICE=ON \
+            -DUSE_CRYPTO=libsodium \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
@@ -44,6 +47,8 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: Install Homebrew dependencies
       run: brew install ninja protobuf
@@ -56,7 +61,6 @@ jobs:
 
     - name: Patch & Build xcframework (No Steam Relay / No Protobuf)
       run: |
-        # Inject the custom configuration switches directly into Valve's shell builder
         export CMAKE_ARGS="-DENABLE_STEAMDATAGRAMRELAY=OFF -DENABLE_ICE=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF"
         ./cmake/apple/make-xcframework.sh --with-deps
 
@@ -64,7 +68,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ios-framework
-        path: build/apple/GameNetworkingSockets.xcframework/
+        path: build/apple/gamenetworkingsockets.xcframework/
 
   # ----------------------------------------------------
   # 3. WINDOWS TARGET (Windows Server Virtual Machine)
@@ -77,6 +81,8 @@ jobs:
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Configure Git Safe Directories
         run: git config --global --add safe.directory '*'
@@ -92,7 +98,7 @@ jobs:
 
       - name: Setup Valve's Explicit VCPKG Pinpoint
         run: |
-          git clone https://github.com/microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
+          git clone https://github.com "${{ env.VCPKG_ROOT }}"
           cd /d "${{ env.VCPKG_ROOT }}"
           git checkout 522253caf47268c1724f486a035e927a42a90092
           call bootstrap-vcpkg.bat -disableMetrics
@@ -134,4 +140,4 @@ jobs:
           name: windows-x64-pc
           path: |
             build-release/bin/gamenetworkingsockets.dll
-            build_release/bin/gamenetworkingsockets.lib
+            build-release/bin/gamenetworkingsockets.lib
