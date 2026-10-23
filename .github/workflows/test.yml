@@ -1,0 +1,26 @@
+name: Build Android Only (v1.6.1)
+on: [workflow_dispatch]
+
+jobs:
+  build-android-arm64:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      with:
+        repository: ValveSoftware/GameNetworkingSockets
+        ref: v1.6.1
+        submodules: recursive
+
+    - name: Quick Directory & Triplet Verification
+      run: |
+        echo "=== STEP 1: Checking Pre-installed GitHub Runner Paths ==="
+        if [ -d "$VCPKG_INSTALLATION_ROOT" ]; then
+          echo "Found Native GitHub VCPKG at: $VCPKG_INSTALLATION_ROOT"
+          echo "=== Available Pre-built Android Directories: ==="
+          ls -la $VCPKG_INSTALLATION_ROOT/installed/ || echo "No prebuilt packages found in root."
+        fi
+        
+        echo "=== STEP 2: Testing Local Workspace Mapping ==="
+        mkdir -p build_test_check
+        echo "Dry-run check completed safely."
