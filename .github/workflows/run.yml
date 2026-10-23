@@ -24,7 +24,9 @@ jobs:
         
         # Explicitly map the system variable to the local compiler pass execution string
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
-        ./vcpkg install libsodium:arm64-android
+        
+        # Fixed Linux syntax layout for vcpkg target assignment
+        ./vcpkg install libsodium --triplet=arm64-android
         cd ..
 
     - name: Compile GameNetworkingSockets for Android arm64-v8a
