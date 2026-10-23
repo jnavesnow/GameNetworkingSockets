@@ -46,52 +46,48 @@ jobs:
         with open('CMakeLists.txt', 'w') as f:
             f.writelines(lines)
             
-        # 2. Patch nested src/CMakeLists.txt (RESTORE PROTOC HEADER GENERATION LOOPS)
+        # 2. Patch nested src/CMakeLists.txt to swap out missing package dependencies
         with open('src/CMakeLists.txt', 'r') as f:
             src_content = f.read()
-            
-        src_lines = src_content.splitlines(keepends=True)
-        for i, line in enumerate(src_lines):
-            # Bypass only the initial find checks, preserving standard layout definitions
-            if 'find_package(Protobuf' in line:
-                src_lines[i] = '# Bypassed find_package check\n'
-        src_content = ''.join(src_lines)
 
-        # Remove pedantic packaging helpers but keep the protobuf_generate_cpp blocks fully active!
+        # Remove pedantic packaging helpers but keep the protobuf loops active
         src_content = re.sub(r'check_c_compiler_flag\s*\(.*?\)', '# Neutralized compiler flag loop', src_content, flags=re.DOTALL)
         src_content = re.sub(r'check_cxx_compiler_flag\s*\(.*?\)', '# Neutralized compiler flag loop', src_content, flags=re.DOTALL)
         src_content = re.sub(r'configure_package_config_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
         src_content = re.sub(r'write_basic_package_version_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
         
-        # Point the structural target mapping variables away from alias packages to the raw include directories
+        # Point structural target mapping variables away from alias packages to raw directories
         src_content = src_content.replace('protobuf::libprotobuf', '\"/usr/include\"')
         src_content = src_content.replace('OpenSSL::Crypto', '\"${OPENSSL_CRYPTO_LIBRARY}\" \"${OPENSSL_SSL_LIBRARY}\" -ldl -lm')
+        src_content = src_content.replace('find_package(Protobuf REQUIRED)', '# Bypassed check')
 
-        # HACK OVERRIDE: Manually define protobuf_generate_cpp directly into src/CMakeLists.txt so it cannot be unknown!
-        macro_definition = '''
-function(protobuf_generate_cpp SRCS HDRS)
-  cmake_parse_arguments(protobuf \"\" \"\" \"\" ${ARGN})
-  set(srcs_list)
-  set(hdrs_list)
-  foreach(file ${protobuf_UNPARSED_ARGUMENTS})
-    get_filename_component(abs_file ${file} ABSOLUTE)
-    get_filename_component(name_we ${file} NAME_WE)
-    set(out_src \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.cc\")
-    set(out_hdr \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.h\")
-    add_custom_command(
-      OUTPUT \"${out_src}\" \"${out_hdr}\"
-      COMMAND /usr/bin/protoc --cpp_out=${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR} ${abs_file}
-      DEPENDS ${abs_file}
-      COMMENT \"Running host protoc on ${file}\"
-      VERBATIM
-    )
-    list(APPEND srcs_list \"${out_src}\")
-    list(APPEND hdrs_list \"${out_hdr}\")
-  endforeach()
-  set(${SRCS} ${srcs_list} PARENT_SCOPE)
-  set(${HDRS} ${hdrs_list} PARENT_SCOPE)
-endfunction()
-'''
+        # HACK OVERRIDE: Inject our replacement custom helper using flat string concat to block shell parsing bugs
+        func_lines = [
+            'function(protobuf_generate_cpp SRCS HDRS)',
+            '  cmake_parse_arguments(protobuf \"\" \"\" \"\" ${ARGN})',
+            '  set(srcs_list)',
+            '  set(hdrs_list)',
+            '  foreach(file ${protobuf_UNPARSED_ARGUMENTS})',
+            '    get_filename_component(abs_file ${file} ABSOLUTE)',
+            '    get_filename_component(name_we ${file} NAME_WE)',
+            '    set(out_src \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.cc\")',
+            '    set(out_hdr \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.h\")',
+            '    add_custom_command(',
+            '      OUTPUT \"${out_src}\" \"${out_hdr}\"',
+            '      COMMAND /usr/bin/protoc --cpp_out=${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR} ${abs_file}',
+            '      DEPENDS ${abs_file}',
+            '      COMMENT \"Running host protoc on ${file}\"',
+            '      VERBATIM',
+            '    )',
+            '    list(APPEND srcs_list \"${out_src}\")',
+            '    list(APPEND hdrs_list \"${out_hdr}\")',
+            '  endforeach()',
+            '  set(${SRCS} ${srcs_list} PARENT_SCOPE)',
+            '  set(${HDRS} ${hdrs_list} PARENT_SCOPE)',
+            'endfunction()'
+        ]
+        
+        macro_definition = '\n'.join(func_lines) + '\n'
         src_content = macro_definition + src_content
 
         with open('src/CMakeLists.txt', 'w') as f:
@@ -111,7 +107,7 @@ endfunction()
         echo "set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT}/lib/libcrypto.a)" >> CMakeLists.txt
         echo "set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT}/lib/libssl.a)" >> CMakeLists.txt
         
-        # Map the binary layout directory globally so the compiler finds the generated message headers natively
+        # Map binary directories globally so the compiler discovers generated message headers natively
         echo "include_directories(${OPENSSL_ROOT}/include /usr/include \${CMAKE_CURRENT_BINARY_DIR}/src)" >> CMakeLists.txt
         echo "link_libraries(${OPENSSL_ROOT}/lib/libssl.a ${OPENSSL_ROOT}/lib/libcrypto.a -ldl -lm)" >> CMakeLists.txt
         
