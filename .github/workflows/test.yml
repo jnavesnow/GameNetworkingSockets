@@ -19,25 +19,23 @@ jobs:
 
     - name: Setup VCPKG and Build Only Sodium
       run: |
-        # 1. Bypass clipping glitch using composite string assignment
         HOST_URL="https://github.com"
         REPO_PATH="/microsoft/vcpkg.git"
         
-        git clone "${HOST_URL}${REPO_PATH}" google-vcpkg
+        git clone "${HOST_URL}${REPO_PATH}" google-vpkg
         cd google-vcpkg
         ./bootstrap-vcpkg.sh -disableMetrics
         
-        # 2. Delete Valve's manifest file locally so vcpkg stays strictly in classic mode
+        # Delete Valve's manifest file locally so vcpkg stays strictly in classic mode
         rm -f ../vcpkg.json
         
-        # 3. Explicitly install ONLY libsodium (Bypasses the 20-minute Protobuf build loop!)
+        # Explicitly install ONLY libsodium
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install libsodium --triplet=arm64-android
         cd ..
 
     - name: Compile GameNetworkingSockets for Android arm64-v8a
       run: |
-        # 4. Map the newly built libsodium parameters directly into the CMake execution string
         SODIUM_ROOT="${{ github.workspace }}/google-vcpkg/installed/arm64-android"
         
         cmake -S . -B build_dir -G Ninja \
@@ -51,15 +49,15 @@ jobs:
             -DUSE_CRYPTO=libsodium \
             -Dsodium_USE_STATIC_LIBS=ON \
             -Dsodium_INCLUDE_DIR="${SODIUM_ROOT}/include" \
-            -Dsodium_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
-            -Dsodium_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
+            -DSODIUM_LIBRARY_RELEASE="${SODIUM_ROOT}/lib/libsodium.a" \
+            -DSODIUM_LIBRARY_DEBUG="${SODIUM_ROOT}/debug/lib/libsodium.a" \
             -DBUILD_TESTS=OFF \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_TOOLS=OFF
             
         cmake --build build_dir --config Release
         
-        # 5. Clean up binary overhead and strip debug data structures
+        # Clean up binary overhead and strip debug data structures
         ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_dir/bin/libgamenetworkingsockets.so
 
     - name: Upload Finished Android arm64 Binary
