@@ -1,68 +1,63 @@
-name: Build Android Libraries
+name: Build Android Release
 
 on:
   push:
     branches: [ master, main ]
-  pull_request:
-    branches: [ master, main ]
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
-  build-android:
+  build-release:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        # Build for all standard modern Android architectures
-        abi: [arm64-v8a, armeabi-v7a, x86_64]
-        include:
-          - abi: arm64-v8a
-            api_level: 21
-          - abi: armeabi-v7a
-            api_level: 21
-          - abi: x86_64
-            api_level: 21
+        # Use Valve's explicitly mapped architecture targets
+        preset: [android-arm64, android-arm, android-x86_64, android-x86]
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: recursive # Ensures Protobuf or other internal dependencies pull down
+        submodules: recursive # Critical for compiling Valve's internal sub-dependencies
 
-    - name: Setup Android NDK
+    - name: Setup Java Environment
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android Toolchain
       uses: android-actions/setup-android@v3
-      id: setup-android
-      # This action automatically setups the SDK and drops an NDK ready for use
+      id: android-env
 
-    - name: Install NDK Component
+    - name: Install Correct Android NDK Tool Version
       run: |
-        sdkmanager "ndk;25.2.9519653" # Adjust NDK version if your codebase targets a specific one
+        # Use NDK r25/r26 versions which natively mirror Valve's modern Bionic integrations
+        sdkmanager "ndk;25.2.9519653"
 
-    - name: Install Build Dependencies
+    - name: Install Toolchain Utilities
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake ninja-build ninja-build openssl libssl-dev
+        sudo apt-get install -y cmake ninja-build openssl libssl-dev
 
-    - name: Configure CMake for Android
+    - name: Configure via Valve's Android Preset
       env:
-        ANDROID_NDK_HOME: ${{ steps.setup-android.outputs.sdk-path }}/ndk/25.2.9519653
+        # Connects your environment directly to CMakePresets.json expectations
+        ANDROID_NDK_HOME: ${{ steps.android-env.outputs.sdk-path }}/ndk/25.2.9519653
       run: |
-        cmake -B build-${{ matrix.abi }} \
-          -G Ninja \
-          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-          -DANDROID_ABI=${{ matrix.abi }} \
-          -DANDROID_PLATFORM=android-${{ matrix.api_level }} \
+        cmake --preset ${{ matrix.preset }} \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF
 
-    - name: Build Libraries
+    - name: Build Library Production Binaries
       run: |
-        cmake --build build-${{ matrix.abi }} --config Release
+        # Triggers the exact compilation sequence outlined in the repository documentation
+        cmake --build --preset ${{ matrix.preset }} --config Release
 
-    - name: Upload Android Binaries Artifacts
-      uses: actions/artifacts/upload-artifact@v4
+    - name: Archive Production Release Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: gamenetworkingsockets-android-${{ matrix.abi }}
+        name: gamenetworkingsockets-${{ matrix.preset }}-release
         path: |
-          build-${{ matrix.abi }}/**/*.so
-          build-${{ matrix.abi }}/**/*.a
+          build/${{ matrix.preset }}/**/*.so
+          build/${{ matrix.preset }}/**/*.a
