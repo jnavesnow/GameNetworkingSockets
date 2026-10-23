@@ -67,12 +67,38 @@ jobs:
         src_content = src_content.replace('protobuf::libprotobuf', '\"/usr/include\"')
         src_content = src_content.replace('OpenSSL::Crypto', '\"${OPENSSL_CRYPTO_LIBRARY}\" \"${OPENSSL_SSL_LIBRARY}\" -ldl -lm')
 
+        # HACK OVERRIDE: Manually define protobuf_generate_cpp directly into src/CMakeLists.txt so it cannot be unknown!
+        macro_definition = '''
+function(protobuf_generate_cpp SRCS HDRS)
+  cmake_parse_arguments(protobuf \"\" \"\" \"\" ${ARGN})
+  set(srcs_list)
+  set(hdrs_list)
+  foreach(file ${protobuf_UNPARSED_ARGUMENTS})
+    get_filename_component(abs_file ${file} ABSOLUTE)
+    get_filename_component(name_we ${file} NAME_WE)
+    set(out_src \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.cc\")
+    set(out_hdr \"${CMAKE_CURRENT_BINARY_DIR}/${name_we}.pb.h\")
+    add_custom_command(
+      OUTPUT \"${out_src}\" \"${out_hdr}\"
+      COMMAND /usr/bin/protoc --cpp_out=${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR} ${abs_file}
+      DEPENDS ${abs_file}
+      COMMENT \"Running host protoc on ${file}\"
+      VERBATIM
+    )
+    list(APPEND srcs_list \"${out_src}\")
+    list(APPEND hdrs_list \"${out_hdr}\")
+  endforeach()
+  set(${SRCS} ${srcs_list} PARENT_SCOPE)
+  set(${HDRS} ${hdrs_list} PARENT_SCOPE)
+endfunction()
+'''
+        src_content = macro_definition + src_content
+
         with open('src/CMakeLists.txt', 'w') as f:
             f.write(src_content)
         "
         
-        # Force-load the native CMake Protobuf module layout variables globally so the command is registered instantly
-        echo "include(FindProtobuf)" >> CMakeLists.txt
+        # Hard-force variables directly to the BOTTOM of the file so CMake cannot overwrite them
         echo "set(HAVE_EVP_MD_CTX_FREE 1)" >> CMakeLists.txt
         echo "set(HAVE_EVP_PKEY_GET_RAW_PUBLIC_KEY 1)" >> CMakeLists.txt
         echo "set(OPENSSL_FOUND TRUE)" >> CMakeLists.txt
