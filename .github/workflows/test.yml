@@ -71,18 +71,18 @@ jobs:
             f.write(src_content)
         "
         
-        # Hard-force variables directly to the BOTTOM of the file so CMake cannot overwrite them
+        # Fixed inner string quotation markings to eliminate shell token-skipping crashes
         echo "set(HAVE_EVP_MD_CTX_FREE 1)" >> CMakeLists.txt
         echo "set(HAVE_EVP_PKEY_GET_RAW_PUBLIC_KEY 1)" >> CMakeLists.txt
         echo "set(OPENSSL_FOUND TRUE)" >> CMakeLists.txt
         echo "set(Protobuf_FOUND TRUE)" >> CMakeLists.txt
         echo "set(PROTOBUF_FOUND TRUE)" >> CMakeLists.txt
         echo "set(OPENSSL_USE_STATIC_LIBS ON)" >> CMakeLists.txt
-        echo "set(OPENSSL_INCLUDE_DIR \"${OPENSSL_ROOT}/include\")" >> CMakeLists.txt
-        echo "set(OPENSSL_CRYPTO_LIBRARY \"${OPENSSL_ROOT}/lib/libcrypto.a\")" >> CMakeLists.txt
-        echo "set(OPENSSL_SSL_LIBRARY \"${OPENSSL_ROOT}/lib/libssl.a\")" >> CMakeLists.txt
-        include_directories("${OPENSSL_ROOT}/include")
-        link_libraries("${OPENSSL_ROOT}/lib/libssl.a" "${OPENSSL_ROOT}/lib/libcrypto.a" -ldl -lm)
+        echo "set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT}/include)" >> CMakeLists.txt
+        echo "set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT}/lib/libcrypto.a)" >> CMakeLists.txt
+        echo "set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT}/lib/libssl.a)" >> CMakeLists.txt
+        echo "include_directories(${OPENSSL_ROOT}/include)" >> CMakeLists.txt
+        echo "link_libraries(${OPENSSL_ROOT}/lib/libssl.a ${OPENSSL_ROOT}/lib/libcrypto.a -ldl -lm)" >> CMakeLists.txt
         
         echo "=== Verification: Last 15 lines of modified CMakeLists.txt ==="
         tail -n 15 CMakeLists.txt
