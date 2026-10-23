@@ -25,7 +25,7 @@ jobs:
         export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
         ./vcpkg install openssl --triplet=arm64-android --classic
 
-    - name: 🪚 Patch Valve Configuration Scripts (Surgical Error Silencer)
+    - name: 🪚 Patch Valve Configuration Scripts (Surgical Linkage Switch)
       run: |
         OPENSSL_ROOT="$VCPKG_INSTALLATION_ROOT/installed/arm64-android"
         
@@ -46,7 +46,7 @@ jobs:
         with open('CMakeLists.txt', 'w') as f:
             f.writelines(lines)
             
-        # 2. Patch nested src/CMakeLists.txt to comment out the first 25 lines cleanly
+        # 2. Patch nested src/CMakeLists.txt to handle localized check macros and link directly to variables
         with open('src/CMakeLists.txt', 'r') as f:
             src_content = f.read()
             
@@ -63,6 +63,9 @@ jobs:
         src_content = re.sub(r'write_basic_package_version_file\s*\(.*?\)', '# Erased pedantic helper completely', src_content, flags=re.DOTALL)
         src_content = re.sub(r'protobuf_generate_cpp\s*\(.*?\)', '# Neutralized generator macro', src_content, flags=re.DOTALL)
         src_content = src_content.replace('protobuf::libprotobuf', '# Bypassed linking target')
+        
+        # FIX BLOCK: Replaces the missing target alias OpenSSL::Crypto with our direct static library handles
+        src_content = src_content.replace('OpenSSL::Crypto', '\"${OPENSSL_CRYPTO_LIBRARY}\" \"${OPENSSL_SSL_LIBRARY}\" -ldl -lm')
 
         with open('src/CMakeLists.txt', 'w') as f:
             f.write(src_content)
@@ -78,8 +81,8 @@ jobs:
         echo "set(OPENSSL_INCLUDE_DIR \"${OPENSSL_ROOT}/include\")" >> CMakeLists.txt
         echo "set(OPENSSL_CRYPTO_LIBRARY \"${OPENSSL_ROOT}/lib/libcrypto.a\")" >> CMakeLists.txt
         echo "set(OPENSSL_SSL_LIBRARY \"${OPENSSL_ROOT}/lib/libssl.a\")" >> CMakeLists.txt
-        echo "include_directories(\"${OPENSSL_ROOT}/include\")" >> CMakeLists.txt
-        echo "link_libraries(\"${OPENSSL_ROOT}/lib/libssl.a\" \"${OPENSSL_ROOT}/lib/libcrypto.a\" -ldl -lm)" >> CMakeLists.txt
+        include_directories("${OPENSSL_ROOT}/include")
+        link_libraries("${OPENSSL_ROOT}/lib/libssl.a" "${OPENSSL_ROOT}/lib/libcrypto.a" -ldl -lm)
         
         echo "=== Verification: Last 15 lines of modified CMakeLists.txt ==="
         tail -n 15 CMakeLists.txt
