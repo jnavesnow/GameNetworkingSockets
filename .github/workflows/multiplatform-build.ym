@@ -1,9 +1,15 @@
 name: Build All Platforms (v1.6.1)
-on: [workflow_dispatch]
+on: [workflow_dispatch] # Manual trigger button
 
 jobs:
-  build-android-arm64:
+  # ----------------------------------------------------
+  # 1. ANDROID JOB (Runs on Linux cloud)
+  # ----------------------------------------------------
+  build-android:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -16,15 +22,14 @@ jobs:
       uses: nwtgck/actions-setup-android-ndk@v1
       with:
         ndk-version: r25c
-        
-    - name: Install Dependencies
-      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+    - run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
 
-    - name: Compile Android arm64-v8a
+    - name: Compile Android
       run: |
-        cmake -H. -Bbuild_arm64 -G Ninja \
+        BUILD_DIR="build_android_\${{ matrix.abi }}"
+        cmake -H. -B\${BUILD_DIR} -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI="arm64-v8a" \
+            -DANDROID_ABI="\${{ matrix.abi }}" \
             -DANDROID_PLATFORM="android-21" \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -32,64 +37,18 @@ jobs:
             -DENABLE_ICE=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_EXAMPLES=OFF
-        cmake --build build_arm64 --config Release
-        \${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_arm64/bin/libgamenetworkingsockets.so
+        cmake --build \${BUILD_DIR} --config Release
+        \({ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug\){BUILD_DIR}/bin/libgamenetworkingsockets.so
 
-    - name: Prepare Artifact
-      run: |
-        mkdir -p out_arm64
-        cp build_arm64/bin/libgamenetworkingsockets.so out_arm64/
-
-    - name: Upload Android arm64
+    - name: Upload Android Binary
       uses: actions/upload-artifact@v4
       with:
-        name: android-arm64-v8a
-        path: out_arm64/
+        name: android-\${{ matrix.abi }}
+        path: build_android_\${{ matrix.abi }}/bin/libgamenetworkingsockets.so
 
-  build-android-armv7:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        repository: ValveSoftware/GameNetworkingSockets
-        ref: v1.6.1
-        submodules: recursive
-
-    - name: Set up NDK & Tools
-      uses: nwtgck/actions-setup-android-ndk@v1
-      with:
-        ndk-version: r25c
-        
-    - name: Install Dependencies
-      run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
-
-    - name: Compile Android armeabi-v7a
-      run: |
-        cmake -H. -Bbuild_armv7 -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="\${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI="armeabi-v7a" \
-            -DANDROID_PLATFORM="android-21" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_STEAMDATAGRAMRELAY=OFF \
-            -DENABLE_ICE=ON \
-            -DENABLE_TESTS=OFF \
-            -DENABLE_EXAMPLES=OFF
-        cmake --build build_armv7 --config Release
-        \${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-debug build_armv7/bin/libgamenetworkingsockets.so
-
-    - name: Prepare Artifact
-      run: |
-        mkdir -p out_armv7
-        cp build_armv7/bin/libgamenetworkingsockets.so out_armv7/
-
-    - name: Upload Android armv7
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-armeabi-v7a
-        path: out_armv7/
-
+  # ----------------------------------------------------
+  # 2. APPLE JOB (iOS & macOS - Runs on Mac cloud)
+  # ----------------------------------------------------
   build-apple:
     runs-on: macos-latest
     steps:
@@ -118,6 +77,7 @@ jobs:
 
     - name: Compile iOS Framework
       run: |
+        # iOS requires an explicit Apple toolchain definition target
         cmake -H. -Bbuild_ios -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
@@ -130,18 +90,17 @@ jobs:
             -DOPENSSL_ROOT_DIR=\$(brew --prefix openssl@3)
         cmake --build build_ios --config Release
 
-    - name: Prepare Artifacts
-      run: |
-        mkdir -p out-apple
-        cp build_mac/bin/libgamenetworkingsockets.dylib out-apple/mac-libgamenetworkingsockets.dylib
-        cp build_ios/bin/libgamenetworkingsockets.dylib out-apple/ios-libgamenetworkingsockets.dylib
-
     - name: Upload Apple Binaries
       uses: actions/upload-artifact@v4
       with:
         name: apple-platforms
-        path: out-apple/
+        path: |
+          build_mac/bin/libgamenetworkingsockets.dylib
+          build_ios/bin/libgamenetworkingsockets.dylib
 
+  # ----------------------------------------------------
+  # 3. WINDOWS JOB (PC .dll - Runs on Windows cloud)
+  # ----------------------------------------------------
   build-windows:
     runs-on: windows-latest
     steps:
@@ -158,13 +117,13 @@ jobs:
     - name: Bootstrap vcpkg dependencies
       run: |
         git clone https://github.com
-        ./vcpkg/bootstrap-vcpkg.bat
-        ./vcpkg/vcpkg install openssl:x64-windows
+        .\vcpkg\bootstrap-vcpkg.bat
+        .\vcpkg\vcpkg install openssl:x64-windows
 
     - name: Compile Windows (.dll)
       run: |
         cmake -H. -Bbuild_win -G Ninja `
-            -DCMAKE_TOOLCHAIN_FILE="\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            "-DCMAKE_TOOLCHAIN_FILE=\${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_BUILD_TYPE=Release `
             -DBUILD_SHARED_LIBS=ON `
             -DENABLE_STEAMDATAGRAMRELAY=OFF `
@@ -173,52 +132,10 @@ jobs:
             -DENABLE_EXAMPLES=OFF
         cmake --build build_win --config Release
 
-    - name: Prepare Artifacts
-      run: |
-        mkdir out-windows
-        cp build_win/bin/gamenetworkingsockets.dll out-windows/
-        cp build_win/bin/gamenetworkingsockets.lib out-windows/
-
     - name: Upload Windows Binary
       uses: actions/upload-artifact@v4
       with:
         name: windows-pc
-        path: out-windows/
-
-  publish-release:
-    needs: [build-android-arm64, build-android-armv7, build-apple, build-windows]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-    - name: Download Compiled Binaries
-      uses: actions/download-artifact@v4
-      with:
-        path: binaries
-
-    - name: Consolidate Output Files
-      run: |
-        mkdir -p release_assets
-        cp binaries/android-arm64-v8a/libgamenetworkingsockets.so release_assets/libgamenetworkingsockets-android-arm64.so
-        cp binaries/android-armeabi-v7a/libgamenetworkingsockets.so release_assets/libgamenetworkingsockets-android-armv7.so
-        cp binaries/apple-platforms/mac-libgamenetworkingsockets.dylib release_assets/libgamenetworkingsockets-mac.dylib
-        cp binaries/apple-platforms/ios-libgamenetworkingsockets.dylib release_assets/libgamenetworkingsockets-ios.dylib
-        cp binaries/windows-pc/gamenetworkingsockets.dll release_assets/gamenetworkingsockets.dll
-        cp binaries/windows-pc/gamenetworkingsockets.lib release_assets/gamenetworkingsockets.lib
-
-    - name: Create Public GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v1.6.1-stripped-build
-        name: GameNetworkingSockets v1.6.1 (No Protobuf / Native P2P)
-        body: |
-          Automated cross-compiled release binaries of GameNetworkingSockets v1.6.1.
-          
-          ### Configuration Details:
-          * Google Protobuf: Disabled ❌
-          * Steam Datagram Relay (SDR): Disabled ❌
-          * Native ICE / STUN / TURN P2P Networking: Enabled  (Self-contained)
-          * Build Type: Release Optimization, Strip-Debug Hooks Applied 🚀
-        draft: false
-        prerelease: false
-        files: release_assets/*
+        path: |
+          build_win/bin/gamenetworkingsockets.dll
+          build_win/bin/gamenetworkingsockets.lib
