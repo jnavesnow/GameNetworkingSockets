@@ -22,7 +22,8 @@ jobs:
 
     - name: Install vcpkg Natively
       run: |
-        git clone --depth=1 https://github.com vcpkg-engine
+        VCPKG_URL="https://github.com"
+        git clone --depth=1 "$VCPKG_URL" vcpkg-engine
         ./vcpkg-engine/bootstrap-vcpkg.sh
 
     - name: Build Core Dependencies for Android
@@ -56,3 +57,4 @@ jobs:
       with:
         name: gamenetworkingsockets-android-all-in-one
         path: distribution/
+        
