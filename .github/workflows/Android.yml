@@ -22,21 +22,21 @@ jobs:
 
     - name: Install vcpkg Natively
       run: |
-        git clone https://github.com vcpkg-engine
+        git clone --depth=1 https://github.com vcpkg-engine
         ./vcpkg-engine/bootstrap-vcpkg.sh
 
     - name: Build Core Dependencies for Android
       env:
         VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        ./vcpkg-engine/vcpkg install --triplet=arm64-android --x-manifest-root=$GITHUB_WORKSPACE
+        ./vcpkg-engine/vcpkg install --triplet=arm64-android --x-manifest-root=${{ github.workspace }}
 
     - name: Configure GameNetworkingSockets
       env:
         ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
         cmake --preset android-arm64 \
-          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg-engine/scripts/buildsystems/vcpkg.cmake \
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg-engine/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF
@@ -56,4 +56,3 @@ jobs:
       with:
         name: gamenetworkingsockets-android-all-in-one
         path: distribution/
-        
