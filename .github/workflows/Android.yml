@@ -15,29 +15,25 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install System Utilities
+    - name: Run Valve Official Package Preparation
       run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake ninja-build zip unzip curl
+        sudo -E bash .github/update-packages.sh
 
-    - name: Install vcpkg Natively
+    - name: Run Valve Official Dependency Provisioning
       run: |
-        VCPKG_URL="https://github.com"
-        git clone --depth=1 "$VCPKG_URL" vcpkg-engine
-        ./vcpkg-engine/bootstrap-vcpkg.sh
+        sudo -E bash .github/install.sh
+        sudo -E bash .github/install-post.sh
 
-    - name: Build Core Dependencies for Android
-      env:
-        VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+    - name: Cross-Compile Manifest Dependencies for Android
       run: |
-        ./vcpkg-engine/vcpkg install --triplet=arm64-android --x-manifest-root=${{ github.workspace }}
+        vcpkg install --triplet=arm64-android --x-manifest-root=${{ github.workspace }}
 
-    - name: Configure GameNetworkingSockets
+    - name: Configure GameNetworkingSockets Engine
       env:
         ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
         cmake --preset android-arm64 \
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg-engine/scripts/buildsystems/vcpkg.cmake \
+          -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF
