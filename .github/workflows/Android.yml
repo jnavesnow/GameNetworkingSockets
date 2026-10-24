@@ -32,23 +32,23 @@ jobs:
         vcpkg install --triplet=arm64-android --x-manifest-root=${{ github.workspace }}
 
     - name: Configure GameNetworkingSockets Engine
-      env:
-        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        cmake --preset android-arm64 \
-          -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=arm64-android \
+        cmake -B build-android-arm64 -G Ninja \
+          -DCMAKE_TOOLCHAIN_FILE=/usr/local/lib/android/sdk/ndk/25.2.9519653/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=arm64-v8a \
+          -DANDROID_PLATFORM=android-21 \
           -DCMAKE_BUILD_TYPE=Release \
-          -DPROTECT_SIDE_CHANNELS=OFF
+          -DPROTECT_SIDE_CHANNELS=OFF \
+          -DCMAKE_PROJECT_INCLUDE=${{ github.workspace }}/vcpkg-engine/scripts/buildsystems/vcpkg.cmake
 
     - name: Compile Libraries
       run: |
-        cmake --build --preset android-arm64 --config Release
+        cmake --build build-android-arm64 --config Release
 
     - name: Consolidate Output Files for Android Studio
       run: |
         mkdir -p distribution/arm64-v8a
-        find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
+        find build-android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
         find vcpkg_installed/arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
     - name: Upload Ready-To-Link Package
