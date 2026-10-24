@@ -22,7 +22,6 @@ jobs:
 
     - name: Bootstrap vcpkg Dependency Manager
       run: |
-        # FIXED: Added the full, correct repository path to the clone string
         git clone https://github.com tools/vcpkg
         ./tools/vcpkg/bootstrap-vcpkg.sh
 
@@ -49,11 +48,7 @@ jobs:
     - name: Consolidate Output Files for Android Studio
       run: |
         mkdir -p distribution/arm64-v8a
-        
-        # Gather GameNetworkingSockets binaries
         find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
-        
-        # Gather companion cross-compiled dependent libs
         find tools/vcpkg/packages/openssl_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
         find tools/vcpkg/packages/protobuf_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
