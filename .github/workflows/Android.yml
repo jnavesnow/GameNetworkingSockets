@@ -9,6 +9,10 @@ jobs:
   build-android-bundle:
     runs-on: ubuntu-latest
 
+    env:
+      CI_BUILD: 1
+      IMAGE: ubuntu
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -22,7 +26,6 @@ jobs:
     - name: Run Valve Official Dependency Provisioning
       run: |
         sudo -E bash .github/install.sh
-        sudo -E bash .github/install-post.sh
 
     - name: Cross-Compile Manifest Dependencies for Android
       run: |
@@ -53,4 +56,3 @@ jobs:
       with:
         name: gamenetworkingsockets-android-all-in-one
         path: distribution/
-        
