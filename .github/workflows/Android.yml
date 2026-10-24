@@ -1,37 +1,39 @@
-name: Build Android All-In-One Release
+name: Build Android Binaries
 
 on:
   push:
     branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
   workflow_dispatch:
 
 jobs:
-  build-android-bundle:
+  android-build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
+    - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install System Utilities
+    - name: Install Development System Utilities
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build zip unzip curl
 
-    - name: Bootstrap vcpkg Dependency Manager
+    - name: Bootstrap Dependency Engine
       run: |
         git clone https://github.com tools/vcpkg
         ./tools/vcpkg/bootstrap-vcpkg.sh
 
-    - name: Build Core Dependencies for Android
+    - name: Compile OpenSSL and Protobuf Dependencies
       env:
         VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
         ./tools/vcpkg/vcpkg install openssl protobuf --triplet=arm64-android
 
-    - name: Configure GameNetworkingSockets
+    - name: Configure CMake Engine For Android Arm64
       env:
         ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
@@ -41,20 +43,20 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF
 
-    - name: Compile Libraries
+    - name: Execute Complete Library Compilation
       run: |
         cmake --build --preset android-arm64 --config Release
 
-    - name: Consolidate Output Files for Android Studio
+    - name: Gather Binary Distribution Layout
       run: |
         mkdir -p distribution/arm64-v8a
         find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
         find tools/vcpkg/packages/openssl_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
         find tools/vcpkg/packages/protobuf_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
-    - name: Upload Ready-To-Link Package
+    - name: Upload Package Bundle to GitHub Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: gamenetworkingsockets-android-all-in-one
+        name: gamenetworkingsockets-android-ready-to-link
         path: distribution/
         
