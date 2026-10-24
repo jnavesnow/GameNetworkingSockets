@@ -22,17 +22,14 @@ jobs:
 
     - name: Install vcpkg Natively
       run: |
-        git clone https://github.com $GITHUB_WORKSPACE/vcpkg-engine
-        $GITHUB_WORKSPACE/vcpkg-engine/bootstrap-vcpkg.sh
+        git clone https://github.com vcpkg-engine
+        ./vcpkg-engine/bootstrap-vcpkg.sh
 
     - name: Build Core Dependencies for Android
       env:
         VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        # FIXED: Run install without explicit packages to let Manifest Mode process Valve's vcpkg.json
-        $GITHUB_WORKSPACE/vcpkg-engine/vcpkg install \
-          --triplet=arm64-android \
-          --x-manifest-root=$GITHUB_WORKSPACE
+        ./vcpkg-engine/vcpkg install --triplet=arm64-android --x-manifest-root=$GITHUB_WORKSPACE
 
     - name: Configure GameNetworkingSockets
       env:
@@ -51,11 +48,7 @@ jobs:
     - name: Consolidate Output Files for Android Studio
       run: |
         mkdir -p distribution/arm64-v8a
-        
-        # Grab the core networking shared library binary
         find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
-        
-        # Grab the manifest-built dependencies from the project-specific installation tree
         find vcpkg_installed/arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
     - name: Upload Ready-To-Link Package
