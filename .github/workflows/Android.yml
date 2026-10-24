@@ -20,24 +20,23 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build zip unzip curl
 
-    - name: Run vcpkg Engine Setup
-      uses: microsoft/vcpkg-action@v1
-      with:
-        vcpkgDirectory: ${{ github.workspace }}/tools/vcpkg
-        doNotBootstrap: false
+    - name: Install vcpkg Natively
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git $GITHUB_WORKSPACE/vcpkg-engine
+        $GITHUB_WORKSPACE/vcpkg-engine/bootstrap-vcpkg.sh
 
     - name: Build Core Dependencies for Android
       env:
         VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        ${{ github.workspace }}/tools/vcpkg/vcpkg install openssl protobuf --triplet=arm64-android
+        $GITHUB_WORKSPACE/vcpkg-engine/vcpkg install openssl protobuf --triplet=arm64-android
 
     - name: Configure GameNetworkingSockets
       env:
         ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
         cmake --preset android-arm64 \
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake \
+          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg-engine/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF
@@ -50,8 +49,8 @@ jobs:
       run: |
         mkdir -p distribution/arm64-v8a
         find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
-        find tools/vcpkg/packages/openssl_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
-        find tools/vcpkg/packages/protobuf_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
+        find $GITHUB_WORKSPACE/vcpkg-engine/packages/openssl_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
+        find $GITHUB_WORKSPACE/vcpkg-engine/packages/protobuf_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
     - name: Upload Ready-To-Link Package
       uses: actions/upload-artifact@v4
