@@ -15,14 +15,6 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Setup Android NDK
-      uses: android-actions/setup-android@v3
-      id: android-env
-
-    - name: Install NDK Component
-      run: |
-        sdkmanager "ndk;25.2.9519653"
-
     - name: Install System Utilities
       run: |
         sudo apt-get update
@@ -35,16 +27,15 @@ jobs:
 
     - name: Build Core Dependencies for Android
       env:
-        VCPKG_ANDROID_NDK_HOME: ${{ steps.android-env.outputs.sdk-path }}/ndk/25.2.9519653
+        # Uses the pristine Android SDK pre-installed directly inside the GitHub runner environment
+        VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        # Cross-compiles absolute latest, matched versions of OpenSSL and Protobuf for Android
         ./tools/vcpkg/vcpkg install openssl protobuf --triplet=arm64-android
 
     - name: Configure GameNetworkingSockets
       env:
-        ANDROID_NDK_HOME: ${{ steps.android-env.outputs.sdk-path }}/ndk/25.2.9519653
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
       run: |
-        # Blends Valve's modern Android preset cleanly with the compiled vcpkg ecosystem
         cmake --preset android-arm64 \
           -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/tools/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
@@ -57,13 +48,12 @@ jobs:
 
     - name: Consolidate Output Files for Android Studio
       run: |
-        # Creates a unified package mimicking the target Android Studio structural path
         mkdir -p distribution/arm64-v8a
         
         # Gather GameNetworkingSockets binaries
         find build/android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
         
-        # Gather matching companion cross-compiled dependent libs
+        # Gather companion cross-compiled dependent libs
         find tools/vcpkg/packages/openssl_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
         find tools/vcpkg/packages/protobuf_arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
