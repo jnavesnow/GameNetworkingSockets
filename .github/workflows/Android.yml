@@ -37,7 +37,8 @@ jobs:
 
     - name: Configure GameNetworkingSockets Engine
       run: |
-        # FIXED: Added -DCMAKE_REQUIRED_LIBRARIES=log to provide required Android systems to internal checks
+        # ULTIMATE OVERRIDE: We inject the check values directly into the CMake Cache (-DPLAYER_HAS_...)
+        # This completely bypasses the bugged "check_library_exists" function pass.
         cmake -B build-android-arm64 -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
@@ -47,7 +48,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF \
           -DGameNetworkingSockets_STATIC_LINK_openssl=ON \
-          -DCMAKE_REQUIRED_LIBRARIES=log
+          -DGameNetworkingSockets_STATIC_LINK_protobuf=ON \
+          -DHAVE_EVP_MD_CTX_FREE=1 \
+          -DHAVE_EVP_MD_CTX_FREE_EXITCODE=0 \
+          -DCMAKE_REQUIRED_LIBRARIES="log;dl"
 
     - name: Compile Libraries
       run: |
