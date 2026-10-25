@@ -37,7 +37,7 @@ jobs:
 
     - name: Configure GameNetworkingSockets Engine
       run: |
-        # UPDATED: Added explicit static-linking directives for OpenSSL to pass CMake function checks
+        # FIXED: Added -DCMAKE_REQUIRED_LIBRARIES=log to provide required Android systems to internal checks
         cmake -B build-android-arm64 -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
@@ -46,7 +46,8 @@ jobs:
           -DANDROID_PLATFORM=android-21 \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF \
-          -DGameNetworkingSockets_STATIC_LINK_openssl=ON
+          -DGameNetworkingSockets_STATIC_LINK_openssl=ON \
+          -DCMAKE_REQUIRED_LIBRARIES=log
 
     - name: Compile Libraries
       run: |
@@ -56,7 +57,6 @@ jobs:
       run: |
         mkdir -p distribution/arm64-v8a
         find build-android-arm64 -name "libGameNetworkingSockets.so" -exec cp {} distribution/arm64-v8a/ \;
-        # UPDATED: Corrected path mapping to target manifest generation trees inside the working build directory
         find build-android-arm64/vcpkg_installed/arm64-android -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
     - name: Upload Ready-To-Link Package
