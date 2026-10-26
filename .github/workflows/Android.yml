@@ -32,6 +32,10 @@ jobs:
         sudo -E bash .github/install.sh
 
     - name: Cross-Compile Manifest Dependencies for Android
+      env:
+        # FORCE vcpkg to build OpenSSL and Abseil with a uniform, modern API baseline
+        VCPKG_DEFAULT_ANDROID_PLATFORM: android-28
+        VCPKG_ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
       run: |
         vcpkg install --triplet=arm64-android --x-manifest-root=${{ github.workspace }}
 
@@ -41,13 +45,13 @@ jobs:
 
     - name: Configure GameNetworkingSockets Engine
       run: |
-        # FIXED: Added -DCMAKE_SHARED_LINKER_FLAGS="-llog -latomic" to inject missing tracking hooks into final shared link phase
+        # MATCH CMake platform configuration parameters exactly to the vcpkg baseline
         cmake -B build-android-arm64 -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
           -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake \
           -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=android-21 \
+          -DANDROID_PLATFORM=android-28 \
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF \
           -DGameNetworkingSockets_STATIC_LINK_openssl=ON \
