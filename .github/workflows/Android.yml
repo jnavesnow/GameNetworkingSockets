@@ -37,12 +37,11 @@ jobs:
 
     - name: Force Patch Valve CMake Check Bug
       run: |
-        # Hard-replaces Valve's fatal error check with a harmless status message
-        # This completely strips out the broken compiler validation pass
         sed -i 's/message(FATAL_ERROR "Cannot find EVP_MD_CTX_free/message(STATUS "Skipped broken check for EVP_MD_CTX_free/g' CMakeLists.txt
 
     - name: Configure GameNetworkingSockets Engine
       run: |
+        # FIXED: Added -DCMAKE_SHARED_LINKER_FLAGS="-llog -latomic" to inject missing tracking hooks into final shared link phase
         cmake -B build-android-arm64 -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=arm64-android \
@@ -52,7 +51,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DPROTECT_SIDE_CHANNELS=OFF \
           -DGameNetworkingSockets_STATIC_LINK_openssl=ON \
-          -DGameNetworkingSockets_STATIC_LINK_protobuf=ON
+          -DGameNetworkingSockets_STATIC_LINK_protobuf=ON \
+          -DCMAKE_SHARED_LINKER_FLAGS="-llog -latomic"
 
     - name: Compile Libraries
       run: |
