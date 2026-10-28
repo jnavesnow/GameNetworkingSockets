@@ -15,6 +15,11 @@ jobs:
   build-and-test-ios:
     name: Build And Test iOS (simulator)
     runs-on: macos-latest
+
+    # REQUIRED: Grants the GitHub token permissions to create releases and upload files
+    permissions:
+      contents: write
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -45,8 +50,23 @@ jobs:
         # Copies the self-contained framework containing both core code and sub-dependencies
         cp -R build/GameNetworkingSockets.xcframework distribution/ios/
 
-    - name: Upload Ready-To-Link Package
-      uses: actions/upload-artifact@v4
+    - name: Package Output for Release Delivery
+      run: |
+        # Zips up the framework folder structure so it can be safely uploaded to GitHub Releases
+        cd distribution
+        zip -r ../gamenetworkingsockets-ios.zip ios/
+
+    - name: Automatically Create GitHub Release and Upload Binaries
+      uses: softprops/action-gh-release@v2
       with:
-        name: gamenetworkingsockets-ios-all-in-one
-        path: distribution/
+        # Generates a clear, unique release tag using the short commit hash to match your Android layout
+        tag_name: ios-build-${{ github.sha }}
+        name: GameNetworkingSockets iOS Production Release
+        body: |
+          Automated Apple iOS framework compile.
+          - Output: GameNetworkingSockets.xcframework (Device & Simulator bundles)
+          - Dependencies: Monolithically integrated static OpenSSL and Protobuf assets matching the Android protocol footprint.
+        draft: false
+        prerelease: false
+        files: |
+          gamenetworkingsockets-ios.zip
