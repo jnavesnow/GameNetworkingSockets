@@ -1,0 +1,52 @@
+name: iOS
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Open a tmate SSH debug session after the build/test steps, even on success'
+        type: boolean
+        default: false
+
+jobs:
+
+  build-and-test-ios:
+    name: Build And Test iOS (simulator)
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        # REQUIRED FOR CROSS-COMPATIBILITY: Ensures internal dependency code is pulled down
+        submodules: recursive
+
+    - name: Install Homebrew dependencies
+      run: brew install ninja protobuf
+
+    - name: Cache Apple dependency builds (OpenSSL, protobuf/Abseil for iOS)
+      uses: actions/cache@v4
+      with:
+        path: build/apple-deps
+        key: apple-deps-ios-${{ hashFiles('cmake/apple/build-apple-deps.sh') }}
+
+    - name: Build xcframework
+      run: ./cmake/apple/make-xcframework.sh --with-deps
+
+    - name: Run iOS simulator smoke test
+      run: ./cmake/apple/run-ios-smoke-test.sh
+
+    # =========================================================================
+    # ADDED: Safe artifact grouping to package everything you need for Xcode
+    # =========================================================================
+    - name: Consolidate Output Files for Xcode Studio
+      run: |
+        mkdir -p distribution/ios
+        # Copies the self-contained framework containing both core code and sub-dependencies
+        cp -R build/GameNetworkingSockets.xcframework distribution/ios/
+
+    - name: Upload Ready-To-Link Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: gamenetworkingsockets-ios-all-in-one
+        path: distribution/
