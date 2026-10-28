@@ -13,6 +13,10 @@ jobs:
       CI_BUILD: 1
       IMAGE: ubuntu
 
+    # REQUIRED: Grants the GitHub token permissions to create releases and upload files
+    permissions:
+      contents: write
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -73,8 +77,23 @@ jobs:
         # It scans the lib subfolders where vcpkg drops completed binary packages.
         find build-android-arm64/vcpkg_installed/arm64-android -type f -name "*.so" -exec cp {} distribution/arm64-v8a/ \;
 
-    - name: Upload Ready-To-Link Package
-      uses: actions/upload-artifact@v4
+    - name: Package Output for Release Delivery
+      run: |
+        # Zips up the folder tree so it downloads as a single asset on your GitHub Release page
+        cd distribution
+        zip -r ../gamenetworkingsockets-android-arm64.zip arm64-v8a/
+
+    - name: Automatically Create GitHub Release and Upload Binaries
+      uses: softprops/action-gh-release@v2
       with:
-        name: gamenetworkingsockets-android-all-in-one
-        path: distribution/
+        # Automatically generates a clean, unique release tag using the short commit hash
+        tag_name: android-build-${{ github.sha }}
+        name: GameNetworkingSockets Android Production Release
+        body: |
+          Automated multi-platform network binary compile.
+          - Architecture: ARM64-v8a (64-bit production)
+          - Dependencies: Monolithically integrated static OpenSSL 3.x and Protobuf engine formats.
+        draft: false
+        prerelease: false
+        files: |
+          gamenetworkingsockets-android-arm64.zip
