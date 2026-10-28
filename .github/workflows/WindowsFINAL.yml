@@ -12,6 +12,11 @@ jobs:
       matrix:
         # Pinned strictly to modern stable Windows Server architectures and OpenSSL
         os-version: [2022, 2025]
+
+    # REQUIRED: Grants the GitHub token permissions to create releases and upload files
+    permissions:
+      contents: write
+
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-bincache
@@ -136,8 +141,24 @@ jobs:
           for /r "${{ github.workspace }}\vcpkg\packages" %%f in (*.dll) do copy "%%f" "${{ github.workspace }}\distribution\x64\"
         shell: cmd
 
-      - name: Upload Ready-To-Link Package
-        uses: actions/upload-artifact@v4
+      - name: Package Output for Release Delivery
+        run: |
+          # Uses native PowerShell compression to securely bundle the x64 assets into a zip archive
+          Compress-Archive -Path "${{ github.workspace }}\distribution\x64" -DestinationPath "${{ github.workspace }}\gamenetworkingsockets-windows-x64-server${{ matrix.os-version }}.zip" -Force
+        shell: pwsh
+
+      - name: Automatically Create GitHub Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
         with:
-          name: gamenetworkingsockets-windows-all-in-one-${{ matrix.os-version }}
-          path: distribution/
+          # Generates a clear, unique release tag matching your Android and iOS layout patterns
+          tag_name: windows-build-server${{ matrix.os-version }}-${{ github.sha }}
+          name: GameNetworkingSockets Windows Server ${{ matrix.os-version }} Release
+          body: |
+            Automated Windows x64 PC desktop framework compile.
+            - Runner OS Host: Windows Server ${{ matrix.os-version }}
+            - Core Engine: GameNetworkingSockets.dll with matching companion reference mapping .lib files.
+            - Dependencies: Fully dynamic runtime OpenSSL 3.x and Protobuf modules aligned with your mobile client signatures.
+          draft: false
+          prerelease: false
+          files: |
+            gamenetworkingsockets-windows-x64-server${{ matrix.os-version }}.zip
