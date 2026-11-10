@@ -143,14 +143,13 @@ jobs:
 
       - name: Package Output for Release Delivery
         run: |
-          # Uses native PowerShell compression to securely bundle the x64 assets into a zip archive
-          Compress-Archive -Path "${{ github.workspace }}\distribution\x64" -DestinationPath "${{ github.workspace }}\gamenetworkingsockets-windows-x64-server${{ matrix.os-version }}.zip" -Force
+          # FIXED: Appended '\*' to ensure the .lib and all companion .dll files are explicitly bundled inside the zip folder root
+          Compress-Archive -Path "${{ github.workspace }}\distribution\x64\*" -DestinationPath "${{ github.workspace }}\gamenetworkingsockets-windows-x64-server${{ matrix.os-version }}.zip" -Force
         shell: pwsh
 
       - name: Automatically Create GitHub Release and Upload Binaries
         uses: softprops/action-gh-release@v2
         with:
-          # Generates a clear, unique release tag matching your Android and iOS layout patterns
           tag_name: windows-build-server${{ matrix.os-version }}-${{ github.sha }}
           name: GameNetworkingSockets Windows Server ${{ matrix.os-version }} Release
           body: |
