@@ -18,7 +18,7 @@ jobs:
       contents: write
 
     env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_ROOT: ${{ github.workspace }}/vpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-bincache
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite
     steps:
@@ -45,7 +45,7 @@ jobs:
 
       - name: Setup local vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
+          git clone https://github.com "${{ env.VCPKG_ROOT }}"
           cd /d "${{ env.VCPKG_ROOT }}"
           git checkout 522253caf47268c1724f486a035e927a42a90092
           call bootstrap-vcpkg.bat -disableMetrics
@@ -70,7 +70,8 @@ jobs:
 
       - name: vcpkg check / install dependencies
         working-directory: '${{ github.workspace }}'
-        run: '"${{env.VCPKG_ROOT}}\vpkg" install --vcpkg-root "${{env.VCPKG_ROOT}}" --triplet=x64-windows'
+        # FIXED: Changed vpkg to vcpkg to fix the execution pathing fault
+        run: '"${{env.VCPKG_ROOT}}\vcpkg" install --vcpkg-root "${{env.VCPKG_ROOT}}" --triplet=x64-windows'
         shell: cmd
 
       - name: Configure CMake (RelWithDebInfo)
@@ -132,19 +133,18 @@ jobs:
           mkdir "${{ github.workspace }}\distribution"
           mkdir "${{ github.workspace }}\distribution\x64"
           
-          # FIXED: Recursively scans the entire build tree to safely copy ALL compiled .dll and .lib variants
-          # This pulls GameNetworkingSockets.dll and GameNetworkingSockets.lib from bin, AND GameNetworkingSockets_s.lib from src
+          # Recursively copies ALL compiled dynamic AND static library formats into the target layout folder
           for /r "${{ github.workspace }}\build-release" %%f in (*GameNetworkingSockets.dll) do copy "%%f" "${{ github.workspace }}\distribution\x64\"
           for /r "${{ github.workspace }}\build-release" %%f in (*GameNetworkingSockets.lib) do copy "%%f" "${{ github.workspace }}\distribution\x64\"
           for /r "${{ github.workspace }}\build-release" %%f in (*GameNetworkingSockets_s.lib) do copy "%%f" "${{ github.workspace }}\distribution\x64\"
           
-          # Gathers matching companion dependency DLL binaries from your vcpkg cache tree
+          # Extract companion cross-compiled dependent runtime dlls from vcpkg package trees
           for /r "${{ github.workspace }}\vcpkg\packages" %%f in (*.dll) do copy "%%f" "${{ github.workspace }}\distribution\x64\"
         shell: cmd
 
       - name: Package Output for Release Delivery
         run: |
-          # FIXED: Appended '\*' to ensure the .lib variants and all companion .dll files are explicitly bundled inside the zip folder root
+          # Bundles the exact inner root files (libraries and dlls) directly into the zip package root level
           Compress-Archive -Path "${{ github.workspace }}\distribution\x64\*" -DestinationPath "${{ github.workspace }}\gamenetworkingsockets-windows-x64-server${{ matrix.os-version }}.zip" -Force
         shell: pwsh
 
