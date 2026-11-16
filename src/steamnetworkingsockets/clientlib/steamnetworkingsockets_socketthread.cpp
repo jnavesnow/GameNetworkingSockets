@@ -25,11 +25,13 @@
 #include <tier0/valve_tracelogging.h>
 
 #if IsPosix()
-	#include <pthread.h>
+#include <pthread.h>
 	#include <sched.h>
 	#include <sys/types.h>
 	#if !IsNintendoSwitch()
 		#include <sys/socket.h>
+		#include <ifaddrs.h>
+		#include <net/if.h>
 	#endif
 	#ifdef STEAMNETWORKINGSOCKETS_ENABLE_RESOLVEHOSTNAME
 		#include <netdb.h>
@@ -4225,7 +4227,7 @@ bool GetLocalAddresses( CUtlVector<LocalAddress_t> *pAddrs )
     free( pAddrInfo );
 	return true;
 
-#elif IsPosix() && !IsPlaystation() && !IsAndroid() && !IsNintendoSwitch()
+#elif IsPosix() && !IsPlaystation() && !IsNintendoSwitch()
 
 	ifaddrs *pMyAddrInfo = NULL;
 	int r = getifaddrs( &pMyAddrInfo );
