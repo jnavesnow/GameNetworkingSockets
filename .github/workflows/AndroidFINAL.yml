@@ -29,11 +29,11 @@ jobs:
 
     - name: Run Valve Official Package Preparation
       run: |
-        sudo -E bash .github/update-packages.sh
+        sudo CI_BUILD=1 IMAGE=ubuntu bash .github/update-packages.sh
 
     - name: Run Valve Official Dependency Provisioning
       run: |
-        sudo -E bash .github/install.sh
+        sudo CI_BUILD=1 IMAGE=ubuntu bash .github/install.sh
 
     - name: Cross-Compile Manifest Dependencies for Android
       env:
